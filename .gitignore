@@ -5,4 +5,11 @@ coverage/
 .DS_Store
 *.log
 .env*
-!.env.example
+.env.example
+.env.local
+node_modules/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*

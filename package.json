@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "homepage": "https://YOUR_USERNAME.github.io/asrorepo-frontend",
+  "homepage": "https://ironhitz.github.io/asrorepo-frontend",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.46.0",
+    "@sentry/react": "^10.45.0",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "d3": "^7.9.0",
@@ -33,7 +34,9 @@
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
+    "gh-pages": "^6.3.0",
     "tailwindcss": "^4.1.14",
+    "terser": "^5.46.1",
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
