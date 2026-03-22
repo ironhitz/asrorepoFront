@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Globe, Plus, Trash2, ExternalLink, Loader2, Search, AlertCircle, Copy, Check } from 'lucide-react';
 import { GitLabProject } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { supabase } from '../supabase';
 import { 
   parseGitLabProjectLink, 
   describeGitLabProject, 
@@ -73,10 +72,10 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
           avatar_url: data.avatar_url || '',
           web_url: data.web_url,
           addedAt: new Date().toISOString(),
-          addedBy: user.uid
+          addedBy: user.id
         };
 
-        await addDoc(collection(db, 'projects'), projectToSave);
+        await supabase.from('projects').insert(projectToSave);
         setSelectedProjectId(data.id.toString());
         setIsAddModalOpen(false);
         setNewProjectId('');
@@ -91,11 +90,11 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
     }
   };
 
-  const handleDeleteProject = async (firestoreId: string, e: React.MouseEvent) => {
+  const handleDeleteProject = async (projectId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to remove this project from ASRO?")) {
       try {
-        await deleteDoc(doc(db, 'projects', firestoreId));
+        await supabase.from('projects').delete().eq('id', projectId);
       } catch (error) {
         console.error("Failed to delete project:", error);
       }
@@ -165,7 +164,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
                   <ExternalLink className="w-4 h-4" />
                 </a>
                 <button 
-                  onClick={(e) => handleDeleteProject((project as any).firestoreId, e)}
+                  onClick={(e) => handleDeleteProject(project.id.toString(), e)}
                   className="p-2 hover:bg-red-500/10 rounded-xl text-zinc-500 hover:text-red-500 transition-all"
                 >
                   <Trash2 className="w-4 h-4" />

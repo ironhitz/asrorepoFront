@@ -1,8 +1,6 @@
-import React, { useState, useEffect, Component } from 'react';
-import { collection, onSnapshot, query, orderBy, limit, doc, getDoc, updateDoc, addDoc } from 'firebase/firestore';
-import { db, auth } from './firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, User } from 'firebase/auth';
-import { GoogleGenAI } from "@google/genai";
+import React, { useState, useEffect } from 'react';
+import { supabase } from './supabase';
+import { User, Session } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import SecurityPosture from './components/SecurityPosture';
@@ -13,12 +11,18 @@ import Projects from './components/Projects';
 import ThreatModel from './components/ThreatModel';
 import Terminal from './components/Terminal';
 import { Agent, Vulnerability, ActivityLog, PipelineEvent, DashboardStats, GitLabProject } from './types';
-import { Shield, LogIn, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar } from 'lucide-react';
+import { Shield, LogIn, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X } from 'lucide-react';
 import seedData from './seed';
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   const [isTerminalOpen, setIsTerminalOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
@@ -26,7 +30,6 @@ export default function App() {
   const [isProjectSelectorOpen, setIsProjectSelectorOpen] = useState(false);
   const [isGitLabConfigured, setIsGitLabConfigured] = useState(true);
 
-  // Data State
   const [agents, setAgents] = useState<Agent[]>([]);
   const [vulnerabilities, setVulnerabilities] = useState<Vulnerability[]>([]);
   const [logs, setLogs] = useState<ActivityLog[]>([]);
@@ -39,111 +42,108 @@ export default function App() {
     autoFixedCount: 0
   });
 
-  const updateVulnerabilityHistory = async (vulnId: string, status: string, message: string, agentId?: string) => {
-    try {
-      const vulnRef = doc(db, 'vulnerabilities', vulnId);
-      const vulnSnap = await getDoc(vulnRef);
-      if (vulnSnap.exists()) {
-        const currentHistory = vulnSnap.data().history || [];
-        const newHistoryItem = {
-          status,
-          timestamp: new Date().toISOString(),
-          message,
-          agentId
-        };
-        await updateDoc(vulnRef, {
-          status,
-          history: [...currentHistory, newHistoryItem]
-        });
-      }
-    } catch (error) {
-      console.error("Error updating vulnerability history:", error);
-    }
-  };
-
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
       setLoading(false);
     });
-    return () => unsubscribe();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setAgents([]);
+      setVulnerabilities([]);
+      setLogs([]);
+      setPipelines([]);
+      setProjects([]);
+      return;
+    }
 
-    // Listen to Agents
-    const qAgents = query(collection(db, 'agents'));
-    const unsubAgents = onSnapshot(qAgents, (snapshot) => {
-      setAgents(snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Agent)));
-    });
+    const loadData = async () => {
+      const { data: agentsData } = await supabase.from('agents').select('*');
+      if (agentsData) setAgents(agentsData as Agent[]);
 
-    // Listen to Vulnerabilities
-    const qVulns = query(collection(db, 'vulnerabilities'), orderBy('createdAt', 'desc'));
-    const unsubVulns = onSnapshot(qVulns, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Vulnerability));
-      
-      // Filter by project if selected
-      const filteredData = selectedProjectId 
-        ? data.filter(v => v.projectId === selectedProjectId)
-        : data;
-
-      setVulnerabilities(filteredData);
-      
-      // Update stats based on data
-      const critical = filteredData.filter(v => v.severity === 'critical').length;
-      const high = filteredData.filter(v => v.severity === 'high').length;
-      const fixed = filteredData.filter(v => v.status === 'patched').length;
-      
-      setStats(prev => ({
-        ...prev,
-        criticalCount: critical,
-        highCount: high,
-        autoFixedCount: fixed,
-        riskScore: Math.max(0, 10 - (critical * 2 + high * 0.5 + filteredData.length * 0.1))
-      }));
-    });
-
-    // Listen to Activity Logs
-    const qLogs = query(collection(db, 'activity_logs'), orderBy('timestamp', 'desc'), limit(50));
-    const unsubLogs = onSnapshot(qLogs, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as ActivityLog));
-      setLogs(selectedProjectId ? data.filter(l => l.projectId === selectedProjectId) : data);
-    });
-
-    // Listen to Pipelines
-    const qPipelines = query(collection(db, 'pipelines'), orderBy('createdAt', 'desc'), limit(10));
-    const unsubPipelines = onSnapshot(qPipelines, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as PipelineEvent));
-      setPipelines(selectedProjectId ? data.filter(p => p.projectId === selectedProjectId) : data);
-    });
-
-    // Listen to Projects
-    const qProjects = query(collection(db, 'projects'), orderBy('addedAt', 'desc'));
-    const unsubProjects = onSnapshot(qProjects, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ 
-        ...doc.data(), 
-        firestoreId: doc.id,
-        id: parseInt(doc.data().id)
-      } as GitLabProject));
-      setProjects(data);
-      
-      // If no project selected, pick the first one
-      if (!selectedProjectId && data.length > 0) {
-        setSelectedProjectId(data[0].id.toString());
+      const { data: vulnsData } = await supabase.from('vulnerabilities').select('*').order('created_at', { ascending: false });
+      if (vulnsData) {
+        const mapped = vulnsData.map(v => ({
+          ...v,
+          createdAt: v.created_at,
+          updatedAt: v.updated_at
+        })) as Vulnerability[];
+        const filteredData = selectedProjectId 
+          ? mapped.filter(v => v.projectId === selectedProjectId)
+          : mapped;
+        setVulnerabilities(filteredData);
+        
+        const critical = filteredData.filter(v => v.severity === 'critical').length;
+        const high = filteredData.filter(v => v.severity === 'high').length;
+        const fixed = filteredData.filter(v => v.status === 'patched').length;
+        
+        setStats(prev => ({
+          ...prev,
+          criticalCount: critical,
+          highCount: high,
+          autoFixedCount: fixed,
+          riskScore: Math.max(0, 10 - (critical * 2 + high * 0.5 + filteredData.length * 0.1))
+        }));
       }
-    });
+
+      const { data: logsData } = await supabase.from('activity_logs').select('*').order('timestamp', { ascending: false }).limit(50);
+      if (logsData) {
+        const mapped = logsData.map(l => ({
+          ...l,
+          timestamp: l.timestamp
+        })) as ActivityLog[];
+        setLogs(selectedProjectId ? mapped.filter(l => l.projectId === selectedProjectId) : mapped);
+      }
+
+      const { data: pipelinesData } = await supabase.from('pipelines').select('*').order('createdAt', { ascending: false }).limit(10);
+      if (pipelinesData) {
+        const mapped = pipelinesData.map(p => ({
+          ...p,
+          createdAt: p.createdAt || p.created_at
+        })) as PipelineEvent[];
+        setPipelines(selectedProjectId ? mapped.filter(p => p.projectId === selectedProjectId) : mapped);
+      }
+
+      const { data: projectsData } = await supabase.from('projects').select('*').order('addedAt', { ascending: false });
+      if (projectsData) {
+        const mapped = projectsData.map(p => ({
+          ...p,
+          addedAt: p.addedAt || p.added_at,
+          firestoreId: p.id
+        })) as GitLabProject[];
+        setProjects(mapped);
+        
+        if (!selectedProjectId && mapped.length > 0) {
+          setSelectedProjectId(mapped[0].id.toString());
+        }
+      }
+    };
+
+    loadData();
+
+    const channel = supabase.channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vulnerabilities' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pipelines' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => loadData())
+      .subscribe();
 
     return () => {
-      unsubAgents();
-      unsubVulns();
-      unsubLogs();
-      unsubPipelines();
-      unsubProjects();
+      supabase.removeChannel(channel);
     };
   }, [user, selectedProjectId]);
 
-  // Fetch real GitLab data
   useEffect(() => {
     if (!user) return;
 
@@ -161,7 +161,6 @@ export default function App() {
         setIsGitLabConfigured(true);
         const projectData = await projectRes.json();
         
-        // Update project info in list if needed
         setProjects(prev => prev.map(p => p.id === projectData.id ? { ...p, ...projectData } : p));
 
         const pipelinesRes = await fetch(`/api/gitlab/pipelines?projectId=${selectedProjectId}`);
@@ -177,20 +176,45 @@ export default function App() {
     };
 
     fetchGitLabData();
-    const interval = setInterval(fetchGitLabData, 30000); // Poll every 30 seconds
+    const interval = setInterval(fetchGitLabData, 30000);
     return () => clearInterval(interval);
   }, [user, selectedProjectId]);
 
-  const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error("Login failed", error);
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
+
+    const { error } = isSignUp 
+      ? await supabase.auth.signUp({ email, password })
+      : await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setAuthError(error.message);
+      setAuthLoading(false);
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setAuthError('');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}`
+      }
+    });
+    if (error) {
+      setAuthError(error.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+  };
+
   const handleFindings = async (findings: any[]) => {
+    if (!user) return;
+    
     for (const finding of findings) {
       const newVuln = {
         title: finding.title,
@@ -199,6 +223,7 @@ export default function App() {
         status: 'detected',
         file: finding.file,
         projectId: selectedProjectId,
+        userId: user.id,
         createdAt: new Date().toISOString(),
         history: [{
           status: 'detected',
@@ -207,15 +232,16 @@ export default function App() {
           agentId: 'Gemini-3-Flash'
         }]
       };
-      await addDoc(collection(db, 'vulnerabilities'), newVuln);
       
-      // Also log this activity
-      await addDoc(collection(db, 'activity_logs'), {
+      await supabase.from('vulnerabilities').insert(newVuln);
+      
+      await supabase.from('activity_logs').insert({
         type: 'vulnerability_detected',
         message: `AI Agent identified ${finding.severity} vulnerability in ${finding.file}: ${finding.title}`,
         timestamp: new Date().toISOString(),
         agentId: 'Gemini-3-Flash',
-        projectId: selectedProjectId
+        projectId: selectedProjectId,
+        userId: user.id
       });
     }
   };
@@ -238,13 +264,82 @@ export default function App() {
         <p className="text-zinc-500 mb-8 text-center max-w-sm">
           AI-powered security orchestration for GitLab. Connect your account to access the control plane.
         </p>
-        <button
-          onClick={handleLogin}
-          className="flex items-center gap-3 bg-white text-black px-8 py-4 rounded-2xl font-bold hover:bg-zinc-200 transition-all active:scale-95"
-        >
-          <LogIn className="w-5 h-5" />
-          Sign in with Google
-        </button>
+        
+        <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 w-full max-w-md">
+          <h2 className="text-xl font-bold text-white mb-6 text-center">
+            {isSignUp ? 'Create Account' : 'Sign In'}
+          </h2>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-gitlab-orange"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-gitlab-orange"
+                required
+                minLength={6}
+              />
+            </div>
+            
+            {authError && (
+              <div className="text-red-500 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                {authError}
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              disabled={authLoading}
+              className="w-full bg-gitlab-orange text-white font-bold py-3 rounded-lg hover:bg-gitlab-orange/90 transition-all disabled:opacity-50"
+            >
+              {authLoading ? <Loader2 className="w-5 h-5 mx-auto animate-spin" /> : (isSignUp ? 'Sign Up' : 'Sign In')}
+            </button>
+          </form>
+          
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10"></div>
+            </div>
+            <div className="relative flex justify-center text-xs">
+              <span className="bg-zinc-900 px-2 text-zinc-500">or continue with</span>
+            </div>
+          </div>
+          
+          <button
+            onClick={handleGoogleLogin}
+            className="w-full flex items-center justify-center gap-3 bg-white text-black px-8 py-3 rounded-lg font-bold hover:bg-zinc-200 transition-all"
+          >
+            <svg viewBox="0 0 24 24" className="w-5 h-5">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            Google
+          </button>
+          
+          <p className="text-center text-sm text-zinc-500 mt-6">
+            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+            <button
+              onClick={() => { setIsSignUp(!isSignUp); setAuthError(''); }}
+              className="text-gitlab-orange hover:underline font-medium"
+            >
+              {isSignUp ? 'Sign In' : 'Sign Up'}
+            </button>
+          </p>
+        </div>
       </div>
     );
   }
@@ -355,15 +450,27 @@ export default function App() {
               Seed Demo Data
             </button>
             <div className="text-right">
-              <div className="text-xs font-bold text-white">{user.displayName}</div>
+              <div className="text-xs font-bold text-white">{user.email?.split('@')[0]}</div>
               <div className="text-[10px] text-zinc-500">{user.email}</div>
             </div>
-            <img 
-              src={user.photoURL || ''} 
-              alt="Avatar" 
-              className="w-8 h-8 rounded-full border border-white/10"
-              referrerPolicy="no-referrer"
-            />
+            {user.user_metadata.avatar_url ? (
+              <img 
+                src={user.user_metadata.avatar_url} 
+                alt="Avatar" 
+                className="w-8 h-8 rounded-full border border-white/10"
+              />
+            ) : (
+              <div className="w-8 h-8 rounded-full border border-white/10 bg-gitlab-orange flex items-center justify-center">
+                <span className="text-white text-xs font-bold">{user.email?.[0]?.toUpperCase()}</span>
+              </div>
+            )}
+            <button 
+              onClick={handleLogout}
+              className="p-2 hover:bg-white/10 rounded-lg transition-all text-zinc-400 hover:text-red-400"
+              title="Sign Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
@@ -423,7 +530,7 @@ export default function App() {
                   <div key={agent.id} className="bg-zinc-900 border border-white/5 p-6 rounded-2xl">
                     <div className="flex items-center justify-between mb-4">
                       <div className="w-10 h-10 bg-white/5 rounded-xl flex items-center justify-center">
-                        <Terminal className="w-5 h-5 text-emerald-500" />
+                        <TerminalIcon className="w-5 h-5 text-emerald-500" />
                       </div>
                       <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${
                         agent.status === 'busy' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-zinc-800 text-zinc-500'
