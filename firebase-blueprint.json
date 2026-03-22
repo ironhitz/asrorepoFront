@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "Agent": {
+      "title": "AI Agent",
+      "description": "An autonomous AI agent participating in security orchestration.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the agent." },
+        "name": { "type": "string", "description": "Display name of the agent (e.g., GPT-4 Patch Gen)." },
+        "role": { "type": "string", "description": "The specific role of the agent (e.g., scanner, patcher, validator)." },
+        "status": { "type": "string", "enum": ["idle", "busy", "error"], "description": "Current operational status." },
+        "lastAction": { "type": "string", "description": "Description of the last performed action." },
+        "lastActionTime": { "type": "string", "format": "date-time", "description": "Timestamp of the last action." }
+      },
+      "required": ["id", "name", "role", "status"]
+    },
+    "Vulnerability": {
+      "title": "Security Vulnerability",
+      "description": "A detected security vulnerability in the repository.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the vulnerability." },
+        "title": { "type": "string", "description": "Short title of the vulnerability." },
+        "severity": { "type": "string", "enum": ["critical", "high", "medium", "low"], "description": "Severity level." },
+        "status": { "type": "string", "enum": ["detected", "patching", "patched", "verified", "ignored"], "description": "Current remediation status." },
+        "description": { "type": "string", "description": "Detailed description of the issue." },
+        "file": { "type": "string", "description": "File path where the vulnerability was found." },
+        "line": { "type": "number", "description": "Line number in the file." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When it was first detected." }
+      },
+      "required": ["id", "title", "severity", "status", "createdAt"]
+    },
+    "ActivityLog": {
+      "title": "Activity Log",
+      "description": "A real-time log of AI agent actions and system events.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the log entry." },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the event occurred." },
+        "agentId": { "type": "string", "description": "ID of the agent that performed the action (optional)." },
+        "type": { "type": "string", "description": "Type of event (e.g., scan_complete, patch_generated)." },
+        "message": { "type": "string", "description": "Human-readable description of the event." },
+        "details": { "type": "object", "description": "Additional structured data about the event." }
+      },
+      "required": ["id", "timestamp", "type", "message"]
+    },
+    "PipelineEvent": {
+      "title": "Pipeline Event",
+      "description": "Information about a GitLab CI/CD pipeline run.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "GitLab pipeline ID." },
+        "status": { "type": "string", "description": "Status (e.g., success, failed, running)." },
+        "ref": { "type": "string", "description": "Git ref (branch/tag)." },
+        "webUrl": { "type": "string", "description": "Link to the pipeline in GitLab." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the pipeline started." }
+      },
+      "required": ["id", "status", "ref", "webUrl", "createdAt"]
+    },
+    "Project": {
+      "title": "GitLab Project",
+      "description": "A GitLab project being managed by ASRO.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "GitLab project ID." },
+        "name": { "type": "string", "description": "Project name." },
+        "path_with_namespace": { "type": "string", "description": "Full path with namespace (e.g., group/project)." },
+        "avatar_url": { "type": "string", "description": "URL to the project avatar." },
+        "web_url": { "type": "string", "description": "Link to the project in GitLab." },
+        "addedAt": { "type": "string", "format": "date-time", "description": "When the project was added to ASRO." },
+        "addedBy": { "type": "string", "description": "UID of the user who added the project." }
+      },
+      "required": ["id", "name", "path_with_namespace", "web_url", "addedAt", "addedBy"]
+    }
+  },
+  "firestore": {
+    "/agents/{agentId}": {
+      "schema": "Agent",
+      "description": "Collection of active AI agents."
+    },
+    "/vulnerabilities/{vulnId}": {
+      "schema": "Vulnerability",
+      "description": "Collection of detected security vulnerabilities."
+    },
+    "/activity_logs/{logId}": {
+      "schema": "ActivityLog",
+      "description": "Real-time activity feed."
+    },
+    "/pipelines/{pipelineId}": {
+      "schema": "PipelineEvent",
+      "description": "History of CI/CD pipeline runs."
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of managed GitLab projects."
+    }
+  }
+}

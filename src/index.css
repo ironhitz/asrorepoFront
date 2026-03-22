@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-gitlab-orange: #e24329;
+  --color-gitlab-light-orange: #fc6d26;
+  --color-gitlab-purple: #6b4fbb;
+  --color-gitlab-dark: #100f2b;
+  --color-gitlab-gray: #f0f0f0;
+  --color-gitlab-border: #dbdbdb;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+@layer base {
+  body {
+    @apply bg-zinc-950 text-zinc-100 antialiased;
+  }
+}
+
+.gitlab-gradient {
+  background: linear-gradient(135deg, #e24329 0%, #fc6d26 50%, #6b4fbb 100%);
+}
+
+.gitlab-border {
+  border-color: rgba(226, 67, 41, 0.2);
+}
+
+.gitlab-text {
+  color: #e24329;
+}
+
+.gitlab-bg {
+  background-color: #e24329;
+}
+
+.gitlab-hover:hover {
+  background-color: #fc6d26;
+}

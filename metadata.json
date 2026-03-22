@@ -1,0 +1,5 @@
+{
+  "name": "ASRO AI Security Orchestration Dashboard",
+  "description": "An AI-powered control plane for GitLab CI/CD security orchestration, featuring automated patching, threat modeling, and compliance scoring.",
+  "requestFramePermissions": []
+}

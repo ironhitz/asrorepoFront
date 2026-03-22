@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "jonblakk@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Agent Validation
+    function isValidAgent(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.name is string && data.name.size() > 0 &&
+             data.role is string && data.role.size() > 0 &&
+             data.status in ['idle', 'busy', 'error'];
+    }
+
+    match /agents/{agentId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Vulnerability Validation
+    function isValidVulnerability(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.title is string && data.title.size() > 0 &&
+             data.severity in ['critical', 'high', 'medium', 'low'] &&
+             data.status in ['detected', 'patching', 'patched', 'verified', 'ignored'];
+    }
+
+    match /vulnerabilities/{vulnId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Activity Log Validation
+    function isValidActivityLog(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.type is string && data.type.size() > 0 &&
+             data.message is string && data.message.size() > 0;
+    }
+
+    match /activity_logs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated(); // Agents (authenticated) can log activity
+      allow update, delete: if isAdmin();
+    }
+
+    // Pipeline Validation
+    match /pipelines/{pipelineId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Project Validation
+    function isValidProject(data) {
+      return data.id is string && data.id.size() > 0 &&
+             data.name is string && data.name.size() > 0 &&
+             data.path_with_namespace is string && data.path_with_namespace.size() > 0 &&
+             data.web_url is string && data.web_url.size() > 0 &&
+             data.addedAt is string && data.addedBy is string;
+    }
+
+    match /projects/{projectId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidProject(request.resource.data) && request.resource.data.addedBy == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+
+    // User Profile
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+  }
+}
