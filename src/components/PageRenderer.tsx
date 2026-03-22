@@ -2,6 +2,7 @@ import React from 'react';
 import { SecurityDashboard } from '../pages/SecurityDashboard';
 import { CompliancePage } from '../pages/Compliance';
 import { AnalyticsPage } from '../pages/Analytics';
+import { About } from '../pages/About';
 
 interface PageRendererProps {
   activeTab: string;
@@ -20,6 +21,7 @@ export function PageRenderer({ activeTab }: PageRendererProps) {
     'security-dashboard',
     'compliance-dashboard',
     'analytics-dashboard',
+    'about',
   ]);
 
   // Validate activeTab to prevent unauthorized rendering
@@ -34,6 +36,8 @@ export function PageRenderer({ activeTab }: PageRendererProps) {
       return <CompliancePage />;
     case 'analytics-dashboard':
       return <AnalyticsPage />;
+    case 'about':
+      return <About />;
     default:
       return null;
   }
@@ -47,6 +51,7 @@ export function getPageTitle(activeTab: string): string {
     'security-dashboard': 'Security Dashboard',
     'compliance-dashboard': 'Compliance',
     'analytics-dashboard': 'Analytics',
+    'about': 'About ASRO',
   };
   return titleMap[activeTab] || 'Dashboard';
 }

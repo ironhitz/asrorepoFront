@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, ShieldAlert, GitBranch, Terminal, Settings, Activity, ShieldCheck, Globe } from 'lucide-react';
+import { LayoutDashboard, ShieldAlert, GitBranch, Terminal, Settings, Activity, ShieldCheck, Globe, Info } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
@@ -18,6 +18,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'security', label: 'Security Posture', icon: ShieldAlert },
     { id: 'pipelines', label: 'CI/CD Intelligence', icon: GitBranch },
     { id: 'activity', label: 'Activity Feed', icon: Activity },
+    { id: 'about', label: 'About', icon: Info },
   ];
 
   return (

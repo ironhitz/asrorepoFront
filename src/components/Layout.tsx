@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Menu, X } from 'lucide-react';
+import { Footer } from './Footer';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface LayoutProps {
 /**
  * Main layout component that provides sidebar + main content structure
  * Supports responsive mobile-friendly navigation
+ * Includes footer with donation link
  */
 export function Layout({ children, sidebar }: LayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -83,6 +85,9 @@ export function Layout({ children, sidebar }: LayoutProps) {
         <main className="flex-1 overflow-y-auto">
           <div className="p-6 md:p-8 max-w-7xl mx-auto w-full">{children}</div>
         </main>
+
+        {/* Footer */}
+        <Footer />
       </div>
     </div>
   );

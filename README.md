@@ -223,7 +223,49 @@ ScoreCard example:
 />
 ```
 
-## 📋 Available Scripts
+## � For Frontend Developers
+
+### New to the Project?
+
+1. **Read** [ONBOARDING.md](ONBOARDING.md) - Complete developer setup guide
+2. **Understand** [ARCHITECTURE.md](ARCHITECTURE.md) - Component structure & data flow
+3. **Follow** [CONTRIBUTING.md](CONTRIBUTING.md) - Coding standards & PR process
+4. **Review** [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) - Community guidelines
+
+### Developer Commands
+
+```bash
+# Setup
+npm install
+npm run cli setup                    # Interactive setup wizard
+
+# Development
+npm run dev                          # Start dev server
+npm run cli watch                    # Watch mode with auto-reload
+npm run cli lint:fix                 # Fix all linting issues
+
+# Building & Testing
+npm run build                        # Build for production
+npm run preview                      # Preview production build
+npm run lint                         # Check TypeScript
+npm run cli test                     # Run tests
+
+# Documentation
+npm run cli docs:generate            # Generate component docs
+npm run cli wiki:sync                # Sync frontend features to GitLab wiki
+npm run cli docs:serve               # Serve documentation locally (port 8000)
+
+# Database & Data
+npm run cli db:seed                  # Seed sample data
+npm run cli db:migrate               # Run migrations
+npm run cli data:export              # Export dashboard data as JSON
+
+# Utilities
+npm run cli serve --port 5173        # Custom dev server
+npm run cli analyze                  # Analyze bundle size
+```
+
+## �📋 Available Scripts
 
 ```bash
 # Start development server
@@ -299,6 +341,21 @@ npm run lint
 - **Backend Issues**: See [GitLab ASRO Repo](https://gitlab.com/git-lab-AI-hackathon/asrorepo)
 - **Frontend Issues**: Create GitHub issue
 - **GitLab Integration**: Check [GitLab API Docs](https://docs.gitlab.com/ee/api/)
+
+### Support Development
+
+Love this project? Help keep it alive! ❤️
+
+[![PayPal Donate](https://img.shields.io/badge/PayPal-Donate-00457C?style=flat-square&logo=paypal)](https://paypal.me/Ironhitz)
+
+Your donations help us:
+- 🚀 Add new features faster
+- 🔒 Improve security & performance
+- 📚 Create better documentation
+- 🐛 Fix bugs quickly
+- 💰 Sustain long-term development
+
+**Every contribution matters. Thank you!**
 
 ## 📄 License
 
