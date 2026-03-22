@@ -9,12 +9,14 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+    { id: 'security-dashboard', label: 'Security Dashboard', icon: ShieldAlert },
+    { id: 'compliance-dashboard', label: 'Compliance', icon: ShieldCheck },
+    { id: 'analytics-dashboard', label: 'Analytics', icon: Activity },
     { id: 'projects', label: 'Projects', icon: Globe },
     { id: 'threat-model', label: 'Threat Model', icon: ShieldAlert },
     { id: 'agents', label: 'AI Orchestration', icon: Terminal },
     { id: 'security', label: 'Security Posture', icon: ShieldAlert },
     { id: 'pipelines', label: 'CI/CD Intelligence', icon: GitBranch },
-    { id: 'compliance', label: 'Compliance', icon: ShieldCheck },
     { id: 'activity', label: 'Activity Feed', icon: Activity },
   ];
 
