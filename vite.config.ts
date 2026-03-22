@@ -10,9 +10,8 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [react(), tailwindcss()],
     
-    // GitHub Pages deployment base path
-    // Change 'asrorepo-frontend' to your repository name
-    base: isDev ? '/' : '/asrorepo-frontend/',
+    // Vercel deployment - no base path needed
+    base: '/',
     
     define: {
       'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
