@@ -208,6 +208,19 @@ export default function App() {
     }
   };
 
+  const handleGitLabLogin = async () => {
+    setAuthError('');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'gitlab',
+      options: {
+        redirectTo: `${window.location.origin}`
+      }
+    });
+    if (error) {
+      setAuthError(error.message);
+    }
+  };
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
@@ -328,6 +341,16 @@ export default function App() {
               <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
             </svg>
             Google
+          </button>
+
+          <button
+            onClick={handleGitLabLogin}
+            className="w-full flex items-center justify-center gap-3 bg-gitlab-orange text-white px-8 py-3 rounded-lg font-bold hover:bg-gitlab-orange/90 transition-all mt-3"
+          >
+            <svg viewBox="0 0 24 24" className="w-5 h-5">
+              <path fill="#E24329" d="M22.65 14.39L12 22.13 1.35 14.39a.84.84 0 0 1-.3-.94l1.22-3.78 2.44-7.51A.42.42 0 0 1 4.82 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.49h8.1l2.44-7.51A.42.42 0 0 1 18.6 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.51L23 13.45a.84.84 0 0 1-.35.94z"/>
+            </svg>
+            GitLab
           </button>
           
           <p className="text-center text-sm text-zinc-500 mt-6">
