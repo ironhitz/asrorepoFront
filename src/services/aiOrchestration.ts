@@ -1,10 +1,9 @@
 import { GoogleGenAI } from "@google/genai";
-import { db } from "../firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { supabase } from "../supabase";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export async function orchestrateSecurityAction(finding: any) {
+export async function orchestrateSecurityAction(finding: any, userId?: string) {
   const model = "gemini-3-flash-preview";
   
   const prompt = `
@@ -27,13 +26,14 @@ export async function orchestrateSecurityAction(finding: any) {
 
     const result = JSON.parse(response.text);
 
-    // Log the action to Firestore
-    await addDoc(collection(db, "activity_logs"), {
+    // Log the action to Supabase
+    await supabase.from("activity_logs").insert({
       timestamp: new Date().toISOString(),
       type: "AI_ORCHESTRATION",
       message: result.message,
       agentId: result.agentId,
-      details: result
+      details: result,
+      userId
     });
 
     return result;
