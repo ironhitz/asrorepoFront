@@ -3,12 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "https://YOUR_USERNAME.github.io/asrorepo-frontend",
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build",
     "start": "node server.ts",
     "lint": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && gh-pages -d dist",
+    "predeploy": "npm run build",
+    "analyze": "npm run build && npx vite-plugin-visualizer dist/index.html"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",

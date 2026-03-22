@@ -283,34 +283,54 @@ npm lint
 
 ## 🚀 Deployment
 
-### GitHub Pages
+> **📚 For comprehensive deployment instructions, see [DEPLOYMENT_ADVANCED.md](DEPLOYMENT_ADVANCED.md)**
 
-1. **Build the app**
+### Quick Start - GitHub Pages
+
 ```bash
-npm run build
-```
+# 1. Install gh-pages
+npm install --save-dev gh-pages
 
-2. **Deploy to GitHub Pages**
-```bash
-# Add to package.json:
-"deploy": "npm run build && gh-pages -d dist"
-
+# 2. Build and deploy
 npm run deploy
+
+# 3. Site will be available at:
+# https://YOUR_USERNAME.github.io/asrorepo-frontend
 ```
 
-3. **Configure GitHub Pages**
-- Go to Settings → Pages
-- Select `gh-pages` branch
-- Custom domain (optional)
+### Deployment Guides
+
+- **[DEPLOYMENT_ADVANCED.md](DEPLOYMENT_ADVANCED.md)** - Complete production deployment guide
+  - GitHub Pages setup
+  - Environment configuration
+  - CI/CD integration with GitHub Actions
+  - Custom domain setup
+  - Monitoring & logging
+  - Security checklist
+  - Troubleshooting
+
+- **[DEPLOYMENT_CHECKLIST_ADVANCED.md](DEPLOYMENT_CHECKLIST_ADVANCED.md)** - Pre-deployment verification
+  - Repository setup checks
+  - Environment variables verification
+  - Code quality validation
+  - Build optimization checks
+  - Security verification
+  - Post-deployment verification
+
+- **[DEPLOYMENT_COMMANDS.md](DEPLOYMENT_COMMANDS.md)** - Quick command reference
+  - Common npm scripts
+  - Deployment procedures
+  - GitHub Secrets setup
+  - Health checks & monitoring
+  - Troubleshooting commands
 
 ### Environment Variables in Production
 
-Set environment variables in GitHub Actions or hosting platform:
-- `VITE_GITLAB_API_URL`
-- `VITE_GITLAB_TOKEN`
-- `VITE_GITLAB_PROJECT_ID`
-- `VITE_AUTO_REFRESH_ENABLED`
-- `VITE_REFRESH_INTERVAL`
+Set environment variables in GitHub Actions via Settings → Secrets → Actions:
+- `GITLAB_API_URL` → `https://gitlab.com/api/v4`
+- `GITLAB_TOKEN` → Your GitLab token (read-only with `api` + `read_repository` scopes)
+- `GITLAB_PROJECT_ID` → `79598942`
+- `SLACK_WEBHOOK` (optional) → Slack notification webhook
 
 ## 🐛 Troubleshooting
 

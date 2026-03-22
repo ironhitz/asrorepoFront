@@ -1,0 +1,89 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build application
+        run: npm run build
+        env:
+          VITE_GITLAB_API_URL: ${{ secrets.GITLAB_API_URL }}
+          VITE_GITLAB_TOKEN: ${{ secrets.GITLAB_TOKEN }}
+          VITE_GITLAB_PROJECT_ID: ${{ secrets.GITLAB_PROJECT_ID }}
+          VITE_AUTO_REFRESH_ENABLED: true
+          VITE_SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+
+      - name: Verify build artifacts
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "❌ Build failed: dist directory not found"
+            exit 1
+          fi
+          echo "✅ Build successful"
+          du -sh dist/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          cname: asrorepo.example.com  # Change to your custom domain or remove
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: dist
+          path: dist/
+          retention-days: 30
+
+      - name: Notify deployment started
+        uses: 8398a7/action-slack@v3
+        if: always()
+        with:
+          status: ${{ job.status }}
+          text: |
+            🚀 ASRO Frontend Deployment
+            Status: ${{ job.status }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        continue-on-error: true
+
+      - name: Performance metrics
+        run: |
+          echo "📊 Deployment Metrics"
+          echo "===================="
+          echo "Build time: $(date)"
+          echo "Commit: ${{ github.sha }}"
+          echo "Branch: ${{ github.ref }}"
+          ls -lh dist/
