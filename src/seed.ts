@@ -2,6 +2,11 @@ import { supabase } from './supabase';
 import { User } from '@supabase/supabase-js';
 
 const seedData = async (projectId?: string, user?: User | null) => {
+  if (!supabase) {
+    console.warn('Supabase not configured - cannot seed data');
+    return;
+  }
+
   console.log('Seeding initial ASRO data for project:', projectId || 'global');
   
   const userId = user?.id;

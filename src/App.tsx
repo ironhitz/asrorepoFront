@@ -43,6 +43,12 @@ export default function App() {
   });
 
   useEffect(() => {
+    if (!supabase) {
+      console.warn('Supabase not configured - running in demo mode');
+      setLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -58,7 +64,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) {
+    if (!user || !supabase) {
       setAgents([]);
       setVulnerabilities([]);
       setLogs([]);
@@ -140,12 +146,14 @@ export default function App() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      if (supabase) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [user, selectedProjectId]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || !supabase) return;
 
     const fetchGitLabData = async () => {
       if (!selectedProjectId) return;
@@ -182,6 +190,10 @@ export default function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!supabase) {
+      setAuthError('Supabase not configured');
+      return;
+    }
     setAuthError('');
     setAuthLoading(true);
 
@@ -196,6 +208,10 @@ export default function App() {
   };
 
   const handleGoogleLogin = async () => {
+    if (!supabase) {
+      setAuthError('Supabase not configured');
+      return;
+    }
     setAuthError('');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -209,6 +225,10 @@ export default function App() {
   };
 
   const handleGitLabLogin = async () => {
+    if (!supabase) {
+      setAuthError('Supabase not configured');
+      return;
+    }
     setAuthError('');
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'gitlab',
@@ -222,11 +242,13 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
   };
 
   const handleFindings = async (findings: any[]) => {
-    if (!user) return;
+    if (!user || !supabase) return;
     
     for (const finding of findings) {
       const newVuln = {

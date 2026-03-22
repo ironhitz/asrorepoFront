@@ -4,6 +4,11 @@ import { supabase } from "../supabase";
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function orchestrateSecurityAction(finding: any, userId?: string) {
+  if (!supabase) {
+    console.warn('Supabase not configured');
+    return null;
+  }
+
   const model = "gemini-3-flash-preview";
   
   const prompt = `
