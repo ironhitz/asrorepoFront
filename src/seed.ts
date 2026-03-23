@@ -1,4 +1,4 @@
-import { supabase } from './supabase';
+import { supabase } from './utils/supabase';
 import { User } from '@supabase/supabase-js';
 
 const seedData = async (projectId?: string, user?: User | null) => {

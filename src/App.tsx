@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabase';
+import { supabase } from './utils/supabase';
 import { User, Session } from '@supabase/supabase-js';
 import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Globe, Plus, Trash2, ExternalLink, Loader2, Search, AlertCircle, Copy, Check } from 'lucide-react';
 import { GitLabProject } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../supabase';
+import { supabase } from '../utils/supabase';
 import { 
   parseGitLabProjectLink, 
   describeGitLabProject, 
