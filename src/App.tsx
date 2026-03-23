@@ -11,7 +11,7 @@ import Projects from './components/Projects';
 import ThreatModel from './components/ThreatModel';
 import Terminal from './components/Terminal';
 import { Agent, Vulnerability, ActivityLog, PipelineEvent, DashboardStats, GitLabProject } from './types';
-import { Shield, LogIn, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X } from 'lucide-react';
+import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X } from 'lucide-react';
 import seedData from './seed';
 
 export default function App() {
@@ -309,7 +309,10 @@ export default function App() {
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">Email</label>
               <input
+                id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-gitlab-orange"
@@ -319,7 +322,10 @@ export default function App() {
             <div>
               <label className="block text-xs font-medium text-zinc-400 mb-1.5">Password</label>
               <input
+                id="password"
+                name="password"
                 type="password"
+                autoComplete={isSignUp ? 'new-password' : 'current-password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-gitlab-orange"
