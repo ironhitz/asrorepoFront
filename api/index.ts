@@ -1,11 +1,41 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { GoogleGenAI } from "@google/genai";
+import { createContext, initializeEngine, executeCommandString } from '../cli/core/engine.js';
+import { GitLabApiAdapter, ApiGitAdapter } from '../cli/node/gitlab-adapter.js';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 const GITLAB_TOKEN = process.env.GITLAB_TOKEN;
 const GITLAB_BASE_URL = process.env.GITLAB_BASE_URL || "https://gitlab.com/api/v4";
 const GITLAB_PROJECT_ID = process.env.GITLAB_PROJECT_ID;
+
+class ApiLogger {
+  log(level: string, message: string, data: any = {}) {
+    console.log(`[${level.toUpperCase()}]`, message, JSON.stringify(data, null, 0));
+  }
+}
+
+function createApiContext(projectId: string) {
+  const gitlabClient = GITLAB_TOKEN 
+    ? new GitLabApiAdapter(GITLAB_TOKEN, GITLAB_BASE_URL)
+    : null;
+  
+  const gitAdapter = gitlabClient ? new ApiGitAdapter(gitlabClient) : null;
+
+  return createContext({
+    gitAdapter,
+    gitlabClient,
+    aiClient: ai,
+    logger: new ApiLogger(),
+    config: {
+      gitlabBaseUrl: GITLAB_BASE_URL,
+      gitlabProjectId: projectId || GITLAB_PROJECT_ID,
+      gitlabToken: GITLAB_TOKEN ? `${GITLAB_TOKEN.substring(0, 8)}...` : null
+    }
+  });
+}
+
+const engineInstance = initializeEngine(createApiContext(GITLAB_PROJECT_ID));
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const { path } = req.query;
@@ -173,90 +203,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
   }
 
-  if (endpoint === 'cli' && req.method === 'POST') {
+  if ((endpoint === 'cli' || endpoint === 'cli/execute') && req.method === 'POST') {
+    const { command } = req.body;
+    const projectId = req.body?.projectId || GITLAB_PROJECT_ID;
+
+    if (!GITLAB_TOKEN || !projectId) {
+      return res.status(400).json({ error: "GitLab configuration missing" });
+    }
+
+    const context = createApiContext(projectId);
+    
+    try {
+      const result = await executeCommandString(command, context);
+      
+      return res.json({
+        success: result.success,
+        output: result.output,
+        data: result.data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        output: `Error: ${error instanceof Error ? error.message : String(error)}`,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  if (endpoint === 'cli/exec' && req.method === 'POST') {
     const { command } = req.body;
     const projectId = req.body?.projectId || GITLAB_PROJECT_ID;
     const pid = projectId || GITLAB_PROJECT_ID;
-    let output = "";
 
     if (!GITLAB_TOKEN || !pid) {
       return res.status(400).json({ error: "GitLab configuration missing" });
     }
 
     if (command.startsWith("asro scan")) {
-      try {
-        const parts = command.split(" ");
-        const targetPath = parts[2] || "";
-        const filesUrl = `${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid)}/repository/tree?recursive=true${targetPath ? `&path=${encodeURIComponent(targetPath)}` : ""}`;
-        const filesRes = await fetch(filesUrl, { headers: { "PRIVATE-TOKEN": GITLAB_TOKEN } });
-        const files = await filesRes.json();
-
-        if (!Array.isArray(files)) {
-          return res.json({ output: `[ERROR] Failed to fetch repository tree.`, timestamp: new Date().toISOString() });
-        }
-
-        let scanOutput = `Scanning repository for vulnerabilities...\n[INFO] Found ${files.length} items.\n[INFO] Analyzing with Gemini-3-Flash...\n`;
-        const findings: any[] = [];
-
-        const codeFiles = files.filter((f: any) => f.type === 'blob' && (f.path.endsWith('.ts') || f.path.endsWith('.js') || f.path.endsWith('.py') || f.path.endsWith('.go'))).slice(0, 5);
-
-        for (const file of codeFiles) {
-          scanOutput += `[INFO] Analyzing ${file.path}...\n`;
-          const fileContentRes = await fetch(`${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid)}/repository/files/${encodeURIComponent(file.path)}/raw?ref=main`, {
-            headers: { "PRIVATE-TOKEN": GITLAB_TOKEN },
-          });
-          const content = await fileContentRes.text();
-
-          const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: `Analyze for security vulnerabilities. Return JSON with "vulnerabilities" array (title, description, severity, file). Empty array if none. File: ${file.path}\n\nCode:\n${content}`,
-            config: { responseMimeType: "application/json" }
-          });
-
-          try {
-            const result = JSON.parse(response.text);
-            if (result.vulnerabilities?.length > 0) {
-              findings.push(...result.vulnerabilities.map((v: any) => ({ ...v, file: file.path })));
-              scanOutput += `[WARN] Found ${result.vulnerabilities.length} issue(s)\n`;
-            } else {
-              scanOutput += `[INFO] No vulnerabilities found\n`;
-            }
-          } catch (e) {
-            scanOutput += `[AI] ${response.text}\n`;
-          }
-        }
-
-        scanOutput += `[SUCCESS] Scan complete. ${findings.length} vulnerabilities detected.`;
-        return res.json({ output: scanOutput, findings, timestamp: new Date().toISOString() });
-      } catch (error) {
-        return res.status(500).json({ output: `Error: ${error instanceof Error ? error.message : String(error)}`, timestamp: new Date().toISOString() });
-      }
-    }
-
-    if (command.startsWith("asro pipeline run")) {
-      try {
-        const response = await fetch(`${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid)}/pipeline?ref=main`, { method: "POST", headers: { "PRIVATE-TOKEN": GITLAB_TOKEN } });
-        const data = await response.json();
-        output = `Triggering GitLab pipeline...\n[INFO] Pipeline #${data.id} started.\n[INFO] Status: ${data.status}\n[INFO] URL: ${data.web_url}`;
-      } catch (error) { output = "Error: Failed to trigger pipeline."; }
-    } else if (command === "asro version") {
-      output = "ASRO CLI v1.0.0\nBuild: 2026-03-21\nEngine: Gemini-3-Flash";
-    } else if (command === "asro whoami") {
-      try {
-        const response = await fetch(`${GITLAB_BASE_URL}/user`, { headers: { "PRIVATE-TOKEN": GITLAB_TOKEN } });
-        const data = await response.json();
-        output = `User: ${data.name} (@${data.username})\nEmail: ${data.email}\nID: ${data.id}`;
-      } catch (error) { output = "Error: Failed to fetch user info."; }
-    } else if (command === "asro repo") {
-      try {
-        const response = await fetch(`${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid)}`, { headers: { "PRIVATE-TOKEN": GITLAB_TOKEN } });
-        const data = await response.json();
-        output = `Project: ${data.name_with_namespace}\nID: ${data.id}\nVisibility: ${data.visibility}\nDefault Branch: ${data.default_branch}\nURL: ${data.web_url}`;
-      } catch (error) { output = "Error: Failed to fetch repo info."; }
-    } else if (command === "asro pipelines") {
-      try {
-        const response = await fetch(`${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid)}/pipelines?per_page=5`, { headers: { "PRIVATE-TOKEN": GITLAB_TOKEN } });
-        const data = await response.json();
         output = "Recent Pipelines:\n" + data.map((p: any) => `- #${p.id}: ${p.status} (${p.ref})`).join("\n");
       } catch (error) { output = "Error: Failed to fetch pipelines."; }
     } else if (command === "asro agents") {

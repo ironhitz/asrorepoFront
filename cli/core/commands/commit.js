@@ -1,0 +1,1 @@
+export { handleCommit } from './index.js';

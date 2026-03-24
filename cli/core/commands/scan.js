@@ -1,0 +1,1 @@
+export { handleScan } from './index.js';

@@ -1,0 +1,1 @@
+export { handlePatch } from './index.js';

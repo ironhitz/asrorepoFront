@@ -1,0 +1,1 @@
+export { handlePipeline } from './index.js';

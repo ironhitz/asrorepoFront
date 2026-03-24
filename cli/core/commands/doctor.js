@@ -1,0 +1,1 @@
+export { handleDoctor } from './index.js';

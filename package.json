@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",
     "predeploy": "npm run build",
-    "analyze": "npm run build && npx vite-plugin-visualizer dist/index.html"
+    "analyze": "npm run build && npx vite-plugin-visualizer dist/index.html",
+    "cli": "tsx cli/node/index.js"
   },
   "dependencies": {
     "@google/genai": "^1.46.0",

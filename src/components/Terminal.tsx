@@ -10,12 +10,24 @@ interface TerminalProps {
 }
 
 const ASCII_ART = `
-    ___   _____ ____  ____ 
-   /   | / ___// __ \\/ __ \\
-  / /| | \\__ \\/ /_/ / / / /
- / ___ |___/ / _, _/ /_/ / 
-/_/  |_/____/_/ |_|\\____/  
-AI Security Orchestration v1.0.0
+╔═════════════════════════════════════════════════════════╗
+║  ██████╗ ███████╗███████╗██╗   ██╗███╗   ██║███████╗   ║
+║ ██╔═══██╗██╔════╝██╔════╝██║   ██║████╗  ██║██╔═══╝    ║
+║ ██║   ██║█████╗  █████╗  ██║   ██║██╔██╗ ██║█████╗     ║
+║ ██║   ██║██╔══╝  ██╔══╝  ██║   ██║██║╚██╗██║██╔══╝     ║
+║ ╚██████╔╝██║     ██║     ╚██████╔╝██║ ╚████║███████╗   ║
+║  ╚═════╝ ╚═╝     ╚═╝      ╚═════╝ ╚═╝  ╚═══╝╚══════╝   ║
+║                                                       ║
+║   ████╗  ██████╗ █████╗  █████╗  ██╗                  ║
+║  █╔══██╗██╔════╝██╔══██╗██╔══██╗ ╚═╝                  ║
+║  ██████║╝╚█████╗ ╚█████║╝██║  ██║ █████╗██╗  ██╗      ║
+║  ██╔══██╗ ╚═══██╗██╔══██╗██║  ██║ ██╔══╝██║ ╔██║      ║
+║  ██║   ██║██████║██║  ███╗█████╔╝ █████║███████║      ║
+║  ╚═╝   ╚═╝╚═════╝╚═╝  ╚══╝╚════╝  ╚════╝╚═══╝╚═╝      ║
+║                                                       ║
+║OFFLINE ASRO CLI - Autonomous Secure Release Orchestrator║
+║ NB* Still under development- Contributors welcome!      ║
+╚═════════════════════════════════════════════════════════╝
 `;
 
 const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, onFindings }) => {
@@ -70,7 +82,7 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, onFindi
 
     setIsLoading(true);
     try {
-      const response = await fetch('/api/cli/exec', {
+      const response = await fetch('/api/cli/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: cmd, projectId })
@@ -78,8 +90,8 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, onFindi
       const data = await response.json();
       setHistory(prev => [...prev, { type: 'out', text: data.output, timestamp: data.timestamp || timestamp }]);
       
-      if (data.findings && onFindings) {
-        onFindings(data.findings);
+      if (data.data?.findings && onFindings) {
+        onFindings(data.data.findings);
       }
     } catch (error) {
       setHistory(prev => [...prev, { type: 'out', text: 'Error: Failed to execute command.', timestamp }]);
