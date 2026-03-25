@@ -1,7 +1,7 @@
 import React from 'react';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
-export type CardColorType = 'orange' | 'purple' | 'emerald' | 'red' | 'blue';
+export type CardColorType = 'orange' | 'purple' | 'emerald' | 'red' | 'blue' | 'amber';
 
 interface ScoreCardProps {
   title: string;
@@ -61,6 +61,12 @@ export function ScoreCard({
         border: 'border-blue-500/20',
         text: 'text-blue-400',
         bar: 'bg-blue-500',
+      },
+      amber: {
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500/20',
+        text: 'text-amber-400',
+        bar: 'bg-amber-500',
       },
     };
     return colorMap[c];

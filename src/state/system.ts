@@ -60,7 +60,10 @@ export function useSystemState() {
   const [state, setState] = useState(systemState.getState());
 
   useEffect(() => {
-    return systemState.subscribe(setState);
+    const unsubscribe = systemState.subscribe(setState);
+    return () => {
+      unsubscribe();
+    };
   }, []);
 
   return state;

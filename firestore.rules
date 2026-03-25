@@ -22,82 +22,98 @@ service cloud.firestore {
 
     // Agent Validation
     function isValidAgent(data) {
-      return data.id is string && data.id.size() > 0 &&
-             data.name is string && data.name.size() > 0 &&
+      return data.name is string && data.name.size() > 0 &&
              data.role is string && data.role.size() > 0 &&
-             data.status in ['idle', 'busy', 'error'];
+             data.status in ['idle', 'busy', 'error'] &&
+             data.userId == request.auth.uid;
     }
 
     match /agents/{agentId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidAgent(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidAgent(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     // Vulnerability Validation
     function isValidVulnerability(data) {
-      return data.id is string && data.id.size() > 0 &&
-             data.title is string && data.title.size() > 0 &&
+      return data.title is string && data.title.size() > 0 &&
              data.severity in ['critical', 'high', 'medium', 'low'] &&
-             data.status in ['detected', 'patching', 'patched', 'verified', 'ignored'];
+             data.status in ['detected', 'patching', 'patched', 'verified', 'ignored'] &&
+             data.userId == request.auth.uid;
     }
 
     match /vulnerabilities/{vulnId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidVulnerability(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidVulnerability(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     // Activity Log Validation
     function isValidActivityLog(data) {
-      return data.id is string && data.id.size() > 0 &&
-             data.type is string && data.type.size() > 0 &&
-             data.message is string && data.message.size() > 0;
+      return data.type is string && data.type.size() > 0 &&
+             data.message is string && data.message.size() > 0 &&
+             data.userId == request.auth.uid;
     }
 
     match /activity_logs/{logId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated(); // Agents (authenticated) can log activity
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidActivityLog(request.resource.data);
       allow update, delete: if isAdmin();
     }
 
     // Pipeline Validation
+    function isValidPipeline(data) {
+      return data.status is string && data.status.size() > 0 &&
+             data.userId == request.auth.uid;
+    }
+
     match /pipelines/{pipelineId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidPipeline(request.resource.data);
+      allow update, delete: if isAdmin();
     }
 
     // Project Validation
     function isValidProject(data) {
-      return data.id is string && data.id.size() > 0 &&
-             data.name is string && data.name.size() > 0 &&
+      return data.name is string && data.name.size() > 0 &&
              data.path_with_namespace is string && data.path_with_namespace.size() > 0 &&
              data.web_url is string && data.web_url.size() > 0 &&
-             data.addedAt is string && data.user_id is string;
+             data.addedBy == request.auth.uid;
     }
 
     match /projects/{projectId} {
-      allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidProject(request.resource.data) && request.resource.data.user_id == request.auth.uid;
-      allow update, delete: if isAdmin();
+      allow read: if isAuthenticated() && (resource.data.addedBy == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidProject(request.resource.data);
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.addedBy == request.auth.uid);
     }
 
-    match /pipeline_stages/{stageId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin();
+    // Plugin Validation
+    function isValidUserPlugin(data) {
+      return data.name is string && data.name.size() > 0 &&
+             data.repoUrl is string && data.repoUrl.size() > 0 &&
+             data.version is string && data.version.size() > 0 &&
+             data.userId == request.auth.uid;
     }
 
-    match /user_tasks/{taskId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+    match /user_plugins/{pluginId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || resource.data.teamId == request.auth.token.teamId || isAdmin());
+      allow create: if isAuthenticated() && isValidUserPlugin(request.resource.data);
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin()) && isValidUserPlugin(request.resource.data);
+      allow delete: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
-    match /user_sessions/{sessionId} {
-      allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+    function isValidTeamPlugin(data) {
+      return data.name is string && data.name.size() > 0 &&
+             data.version is string && data.version.size() > 0 &&
+             data.userId == request.auth.uid;
     }
 
-    match /sustainability_metrics/{metricId} {
+    match /team_plugins/{pluginId} {
       allow read: if isAuthenticated();
-      allow write: if isAdmin();
+      allow create: if isAuthenticated() && isValidTeamPlugin(request.resource.data);
+      allow update, delete: if isAdmin() || (isAuthenticated() && resource.data.userId == request.auth.uid);
     }
 
     // User Profile

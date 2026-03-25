@@ -164,7 +164,7 @@ export default function App() {
 
       // Projects
       const projectsSnap = await getDocs(query(collection(db, 'projects'), where('userId', '==', user.uid), orderBy('addedAt', 'desc')));
-      const projectsData = projectsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as GitLabProject[];
+      const projectsData = projectsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as unknown as GitLabProject[];
       setProjects(projectsData);
 
       if (!selectedProjectId && projectsData.length > 0) {

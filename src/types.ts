@@ -2,20 +2,6 @@ export type Severity = 'critical' | 'high' | 'medium' | 'low';
 export type VulnStatus = 'detected' | 'patching' | 'patched' | 'verified' | 'ignored';
 export type AgentStatus = 'idle' | 'busy' | 'error';
 
-export interface DashboardStats {
-  riskScore: number;
-  criticalCount: number;
-  highCount: number;
-  mttp: string;
-  autoFixedCount: number;
-  mediumCount?: number;
-  lowCount?: number;
-  totalVulns?: number;
-  patchedCount?: number;
-  activeAgents?: number;
-  pipelineHealth?: number;
-}
-
 export interface Agent {
   id: string;
   name: string;
@@ -23,20 +9,6 @@ export interface Agent {
   status: AgentStatus;
   lastAction?: string;
   lastActionTime?: string;
-  purpose?: string;
-  trigger?: string;
-  icon?: string;
-}
-
-export interface PipelineStage {
-  id: string;
-  name: string;
-  description: string;
-  status: 'pending' | 'running' | 'success' | 'failed' | 'skipped';
-  score?: number;
-  duration?: string;
-  artifacts?: string[];
-  blocking?: boolean;
 }
 
 export interface Vulnerability {
@@ -94,16 +66,6 @@ export interface ActivityLog {
   details?: any;
 }
 
-export interface PipelineJob {
-  id: number;
-  name: string;
-  stage: string;
-  status: string;
-  started_at: string;
-  finished_at: string;
-  duration: number;
-}
-
 export interface PipelineEvent {
   id: string;
   projectId: string;
@@ -111,34 +73,29 @@ export interface PipelineEvent {
   ref: string;
   webUrl: string;
   createdAt: string;
-  jobs?: PipelineJob[];
+}
+
+export interface DashboardStats {
+  riskScore: number;
+  criticalCount: number;
+  highCount: number;
+  mttp: string; // Mean Time To Patch
+  autoFixedCount: number;
+}
+
+export interface PipelineStage {
+  id: string;
+  name: string;
+  status: 'success' | 'failed' | 'running' | 'pending';
+  duration?: string;
+  blocking?: boolean;
+  description?: string;
+  score?: number;
 }
 
 export interface SustainabilityMetrics {
-  carbonFootprint: number; // in grams CO2e
-  energyUsage: number; // in Wh
-  greenScore: number; // 0-100
-  optimizationSavings: number; // percentage
-}
-
-export interface UserTask {
-  id: string;
-  title: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  status: 'open' | 'in-progress' | 'completed';
-  dueDate: string;
-}
-
-export interface UserSession {
-  id: string;
-  timestamp: string;
-  duration: string;
-  actions: number;
-}
-
-export interface ProfileData {
-  history: ActivityLog[];
-  savedSessions: UserSession[];
-  openTasks: UserTask[];
-  pendingMRs: any[];
+  carbonFootprint: number;
+  energyUsage: number;
+  greenScore: number;
+  optimizationSavings: number;
 }
