@@ -17,6 +17,7 @@ import Plugins from './pages/Plugins';
 import { Agent, Vulnerability, ActivityLog, PipelineEvent, DashboardStats, GitLabProject } from './types';
 import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X, ShieldCheck } from 'lucide-react';
 import seedData from './seed';
+import ToastContainer from './components/ToastContainer';
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -616,6 +617,7 @@ export default function App() {
         projectId={selectedProjectId} 
         onFindings={handleFindings}
       />
+      <ToastContainer />
     </div>
   );
 }

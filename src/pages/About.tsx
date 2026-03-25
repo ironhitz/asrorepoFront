@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Heart, Github, ExternalLink, Shield, Code, Users, Terminal, Package, Sparkles } from 'lucide-react';
+import { Heart, Github, ExternalLink, Shield, Code, Users, Terminal, Package, Sparkles, Lock, Unlock, AlertTriangle } from 'lucide-react';
 
 export function About() {
   const containerVariants = {
@@ -100,6 +100,66 @@ export function About() {
               <li>• Real-time data sync</li>
               <li>• Secure authentication</li>
             </ul>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Security Model Section - Demo vs Production */}
+      <motion.section variants={itemVariants} className="bg-gradient-to-r from-yellow-900/20 to-orange-900/20 border border-yellow-500/30 rounded-xl p-8 space-y-4">
+        <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+          <Shield className="text-yellow-500" size={28} />
+          Security Model
+        </h2>
+        
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Demo Mode */}
+          <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Unlock className="text-yellow-400" size={20} />
+              <h3 className="font-bold text-yellow-400">Demo Mode (Current)</h3>
+            </div>
+            <ul className="text-white/70 space-y-2 text-sm">
+              <li>• 🔓 Plugins run with full access</li>
+              <li>• 🔓 Network access enabled</li>
+              <li>• 🔓 Filesystem read/write allowed</li>
+              <li>• 🔓 API keys accessible</li>
+              <li>• 🎯 For demonstration & testing</li>
+            </ul>
+            <div className="mt-4 p-3 bg-yellow-500/5 rounded text-xs text-yellow-400/70">
+              ⚠️ Used for: Demos, judge walkthroughs, feature exploration
+            </div>
+          </div>
+
+          {/* Production Mode */}
+          <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Lock className="text-emerald-400" size={20} />
+              <h3 className="font-bold text-emerald-400">Production Mode (Future)</h3>
+            </div>
+            <ul className="text-white/70 space-y-2 text-sm">
+              <li>→ Zero-trust sandbox (WASM)</li>
+              <li>• 🔐 Network disabled by default</li>
+              <li>• 🔐 Read-only filesystem</li>
+              <li>• 🔐 Secrets encrypted</li>
+              <li>• 🔐 Docker container isolation</li>
+            </ul>
+            <div className="mt-4 p-3 bg-emerald-500/5 rounded text-xs text-emerald-400/70">
+              🔒 Used for: Production deployments, secure environments
+            </div>
+          </div>
+        </div>
+
+        {/* Attack Simulation Info */}
+        <div className="mt-6 bg-red-500/10 border border-red-500/30 rounded-lg p-4">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="text-red-400" size={24} />
+            <div>
+              <h4 className="font-bold text-red-400">Attack Simulation Demo</h4>
+              <p className="text-white/60 text-sm mt-1">
+                The platform includes attack simulation capabilities to demonstrate security vulnerabilities. 
+                In demo mode, attacks succeed (to show the problem). In production, zero-trust sandbox blocks them.
+              </p>
+            </div>
           </div>
         </div>
       </motion.section>

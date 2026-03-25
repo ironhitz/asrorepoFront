@@ -14,6 +14,28 @@ Enterprise-grade security dashboard powered by AI-driven vulnerability scanning 
 - Critical issue tracking and remediation
 - Security trend analysis over time
 
+**Plugin System**
+- Plugin marketplace with AI recommendations
+- Team-shared plugins with collaboration
+- Dependency management and verification
+- Install from marketplace or custom repositories
+
+**AI-Powered Features**
+- AI-generated security plugins via CLI
+- Smart recommendations based on project needs
+- Automated vulnerability detection
+- Intelligent remediation suggestions
+
+**Demo Mode (Current)**
+- 🔓 Plugins run with full access (permissive mode)
+- For demonstration & testing purposes
+- Shows what zero-trust will prevent in production
+
+**Attack Simulation**
+- 🛡️ Visual security proof via attack simulation
+- Demonstrates vulnerabilities in demo mode
+- Shows how production will be protected
+
 **Compliance Management**
 - Multi-framework compliance tracking (SOC2, GDPR, OWASP, PCI-DSS, HIPAA, ISO 27001)
 - Compliance violation monitoring

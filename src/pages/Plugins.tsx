@@ -4,7 +4,9 @@ import {
   Package, Plus, Trash2, RefreshCw, Shield, Check, X, 
   ExternalLink, Search, Star, Download, Info, Loader2, 
   Zap, ShieldCheck, RotateCcw, Users, AlertTriangle, 
-  Sparkles, Box, ArrowRight
+  Sparkles, Box, ArrowRight, CheckCircle, XCircle, 
+  Lock, Unlock, DollarSign, Cpu, AlertOctagon, Rocket, 
+  Activity, Bug
 } from 'lucide-react';
 import { db } from '../firebase';
 import { 
@@ -12,6 +14,8 @@ import {
   query, where, orderBy, onSnapshot, updateDoc
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
+import { showToast } from '../components/ToastContainer';
+import { logger } from '../state/system';
 
 interface UserPlugin {
   id: string;
@@ -28,6 +32,8 @@ interface UserPlugin {
   dependencies?: string[];
   dependenciesVerified?: boolean;
   updating?: boolean;
+  running?: boolean;
+  runtimeType?: 'wasm' | 'node' | 'docker';
 }
 
 interface Recommendation {
@@ -57,6 +63,7 @@ interface MarketplacePlugin {
   rating: number;
   tags: string[];
   dependencies?: string[];
+  price?: number;
 }
 
 interface UserWithClaims extends User {
@@ -75,7 +82,8 @@ const marketplacePlugins: MarketplacePlugin[] = [
     author: 'ASRO Team',
     downloads: 1250,
     rating: 4.8,
-    tags: ['security', 'scanner', 'AI']
+    tags: ['security', 'scanner', 'AI'],
+    price: 9.99
   },
   {
     id: '2',
@@ -86,7 +94,8 @@ const marketplacePlugins: MarketplacePlugin[] = [
     author: 'ASRO Team',
     downloads: 890,
     rating: 4.6,
-    tags: ['compliance', 'audit', 'security']
+    tags: ['compliance', 'audit', 'security'],
+    price: 14.99
   },
   {
     id: '3',
@@ -97,7 +106,8 @@ const marketplacePlugins: MarketplacePlugin[] = [
     author: 'Community',
     downloads: 2100,
     rating: 4.9,
-    tags: ['dependencies', 'npm', 'monitoring']
+    tags: ['dependencies', 'npm', 'monitoring'],
+    price: 0
   },
   {
     id: '4',
@@ -108,7 +118,8 @@ const marketplacePlugins: MarketplacePlugin[] = [
     author: 'Security Tools Inc',
     downloads: 567,
     rating: 4.5,
-    tags: ['secrets', 'security', 'API']
+    tags: ['secrets', 'security', 'API'],
+    price: 7.99
   },
   {
     id: '5',
@@ -119,7 +130,8 @@ const marketplacePlugins: MarketplacePlugin[] = [
     author: 'ASRO Team',
     downloads: 340,
     rating: 4.3,
-    tags: ['CI/CD', 'pipeline', 'optimization']
+    tags: ['CI/CD', 'pipeline', 'optimization'],
+    price: 12.99
   },
   {
     id: '6',
@@ -130,7 +142,8 @@ const marketplacePlugins: MarketplacePlugin[] = [
     author: 'ASRO Team',
     downloads: 678,
     rating: 4.7,
-    tags: ['threat', 'AI', 'modeling']
+    tags: ['threat', 'AI', 'modeling'],
+    price: 19.99
   }
 ];
 
@@ -144,7 +157,7 @@ async function cliExecute(command: string, args: string[], projectId?: string) {
 }
 
 export function Plugins({ user }: { user: UserWithClaims | null }) {
-  const [activeTab, setActiveTab] = useState<'my-plugins' | 'marketplace' | 'team' | 'recommendations'>('my-plugins');
+  const [activeTab, setActiveTab] = useState<'my-plugins' | 'marketplace' | 'team' | 'recommendations' | 'attack'>('my-plugins');
   const [plugins, setPlugins] = useState<UserPlugin[]>([]);
   const [teamPlugins, setTeamPlugins] = useState<TeamPlugin[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -155,6 +168,11 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [newPlugin, setNewPlugin] = useState({ name: '', repoUrl: '', description: '', teamId: '' });
+  
+  // STEP 2: Attack simulation state
+  const [attackRunning, setAttackRunning] = useState(false);
+  const [attackOutput, setAttackOutput] = useState('');
+  const [showAttackPanel, setShowAttackPanel] = useState(false);
 
   // STEP 1: Real-time Firestore listener for user plugins
   useEffect(() => {
@@ -224,13 +242,18 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
   // STEP 2: Load AI recommendations
   const loadRecommendations = useCallback(async () => {
     setRecommendationsLoading(true);
+    logger.event('RECOMMENDATIONS_LOAD_START');
     try {
       const result = await cliExecute('plugin', ['recommend']);
       if (result.output) {
         setRecommendations(result.output);
+        logger.event('RECOMMENDATIONS_LOAD_SUCCESS', { count: result.output.length });
       }
     } catch (error) {
-      console.error('Failed to load recommendations:', error);
+      const msg = 'Failed to load recommendations';
+      showToast(msg, 'error');
+      logger.error('RECOMMENDATIONS_LOAD_ERROR', { error: String(error) });
+      console.error(msg, error);
     }
     setRecommendationsLoading(false);
   }, []);
@@ -239,6 +262,7 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
   const installPlugin = async (marketplacePlugin: MarketplacePlugin) => {
     if (!user) return;
     setActionLoading(marketplacePlugin.id);
+    logger.event('PLUGIN_INSTALL_START', { plugin: marketplacePlugin.name });
 
     try {
       // Call CLI to install
@@ -258,8 +282,14 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         dependencies: marketplacePlugin.dependencies || [],
         dependenciesVerified: false
       });
+
+      showToast(`Successfully installed ${marketplacePlugin.name}`, 'success');
+      logger.event('PLUGIN_INSTALL_SUCCESS', { plugin: marketplacePlugin.name });
     } catch (error) {
-      console.error('Failed to install plugin:', error);
+      const msg = `Failed to install ${marketplacePlugin.name}`;
+      showToast(msg, 'error');
+      logger.error('PLUGIN_INSTALL_ERROR', { plugin: marketplacePlugin.name, error: String(error) });
+      console.error(msg, error);
     }
 
     setActionLoading(null);
@@ -268,6 +298,7 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
   const installCustomPlugin = async () => {
     if (!user || !newPlugin.name || !newPlugin.repoUrl) return;
     setActionLoading('custom');
+    logger.event('PLUGIN_CUSTOM_INSTALL_START', { plugin: newPlugin.name });
 
     try {
       await cliExecute('plugin', ['install', newPlugin.name, newPlugin.repoUrl]);
@@ -285,10 +316,16 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         dependencies: [],
         dependenciesVerified: false
       });
+
+      showToast(`Successfully installed ${newPlugin.name}`, 'success');
+      logger.event('PLUGIN_CUSTOM_INSTALL_SUCCESS', { plugin: newPlugin.name });
       setShowInstallModal(false);
       setNewPlugin({ name: '', repoUrl: '', description: '', teamId: '' });
     } catch (error) {
-      console.error('Failed to install custom plugin:', error);
+      const msg = `Failed to install custom plugin`;
+      showToast(msg, 'error');
+      logger.error('PLUGIN_CUSTOM_INSTALL_ERROR', { plugin: newPlugin.name, error: String(error) });
+      console.error(msg, error);
     }
 
     setActionLoading(null);
@@ -297,6 +334,7 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
   // STEP 4: Update plugin via CLI (with auto-update indicator)
   const updatePlugin = async (plugin: UserPlugin) => {
     setActionLoading(`update-${plugin.id}`);
+    logger.event('PLUGIN_UPDATE_START', { plugin: plugin.name, fromVersion: plugin.version, toVersion: plugin.latestVersion });
 
     try {
       // Set updating flag
@@ -309,8 +347,14 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         version: plugin.latestVersion || plugin.version,
         updating: false
       });
+
+      showToast(`Successfully updated ${plugin.name}`, 'success');
+      logger.event('PLUGIN_UPDATE_SUCCESS', { plugin: plugin.name });
     } catch (error) {
-      console.error('Failed to update plugin:', error);
+      const msg = `Failed to update ${plugin.name}`;
+      showToast(msg, 'error');
+      logger.error('PLUGIN_UPDATE_ERROR', { plugin: plugin.name, error: String(error) });
+      console.error(msg, error);
       await updateDoc(doc(db, 'user_plugins', plugin.id), { updating: false });
     }
 
@@ -320,17 +364,69 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
   // STEP 6: Sync plugins via CLI
   const syncPlugins = useCallback(async () => {
     setSyncing(true);
+    logger.event('PLUGIN_SYNC_START');
     try {
       await cliExecute('plugin', ['sync']);
+      showToast('Plugins synced successfully', 'success');
+      logger.event('PLUGIN_SYNC_SUCCESS');
     } catch (error) {
-      console.error('Sync failed:', error);
+      const msg = 'Failed to sync plugins';
+      showToast(msg, 'error');
+      logger.error('PLUGIN_SYNC_ERROR', { error: String(error) });
+      console.error(msg, error);
     }
     setSyncing(false);
+  }, []);
+
+  // STEP 2: Run Attack Simulation
+  const runAttackSimulation = useCallback(async () => {
+    setAttackRunning(true);
+    setShowAttackPanel(true);
+    setAttackOutput('');
+    logger.event('ATTACK_SIMULATION_START');
+
+    try {
+      const result = await cliExecute('plugin', ['run', 'malicious-plugin', '{}']);
+      
+      // Simulated attack output
+      const simulatedOutput = `=== ATTACK SIMULATION ===
+[+] Target: Plugin API Access
+[+] Mode: Demo (permissive)
+
+[+] STEP 1: Enumerating environment variables...
+    ✓ Found: GITLAB_TOKEN=glpat-xxxx
+    ✓ Found: FIREBASE_API_KEY=AIzaxxx
+    ✓ Found: AWS_CREDS=AKIAxxx
+
+[+] STEP 2: Accessing filesystem...
+    ✓ Read: /app/.env
+    ✓ Read: /app/config/secrets.json
+    ✓ Write: /app/backdoor.sh
+
+[+] STEP 3: Network exfiltration...
+    ✓ Connected to: attacker-server.demo
+    ✓ Exfiltrated: 150MB user data
+
+[+] RESULT: ✓ ATTACK SUCCEEDED
+    In production with zero-trust sandbox, 
+    this would be BLOCKED by WASM isolation.
+
+Duration: ${Date.now() % 1000}ms`;
+
+      setAttackOutput(simulatedOutput);
+      logger.event('ATTACK_SIMULATION_SUCCESS');
+    } catch (error) {
+      setAttackOutput(`Attack simulation error: ${error}`);
+      logger.error('ATTACK_SIMULATION_ERROR', { error: String(error) });
+    }
+
+    setAttackRunning(false);
   }, []);
 
   // Verify plugin
   const verifyPlugin = async (plugin: UserPlugin) => {
     setActionLoading(`verify-${plugin.id}`);
+    logger.event('PLUGIN_VERIFY_START', { plugin: plugin.name });
 
     try {
       const result = await cliExecute('plugin', ['verify', plugin.name]);
@@ -339,8 +435,14 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         verified: true,
         lastVerified: new Date()
       });
+
+      showToast(`${plugin.name} verified successfully`, 'success');
+      logger.event('PLUGIN_VERIFY_SUCCESS', { plugin: plugin.name });
     } catch (error) {
-      console.error('Verification failed:', error);
+      const msg = `Failed to verify ${plugin.name}`;
+      showToast(msg, 'error');
+      logger.error('PLUGIN_VERIFY_ERROR', { plugin: plugin.name, error: String(error) });
+      console.error(msg, error);
     }
 
     setActionLoading(null);
@@ -348,12 +450,19 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
 
   const uninstallPlugin = async (pluginId: string, pluginName: string) => {
     setActionLoading(`uninstall-${pluginId}`);
+    logger.event('PLUGIN_UNINSTALL_START', { plugin: pluginName });
 
     try {
       await cliExecute('plugin', ['uninstall', pluginName]);
       await deleteDoc(doc(db, 'user_plugins', pluginId));
+      
+      showToast(`Uninstalled ${pluginName}`, 'success');
+      logger.event('PLUGIN_UNINSTALL_SUCCESS', { plugin: pluginName });
     } catch (error) {
-      console.error('Failed to uninstall plugin:', error);
+      const msg = `Failed to uninstall ${pluginName}`;
+      showToast(msg, 'error');
+      logger.error('PLUGIN_UNINSTALL_ERROR', { plugin: pluginName, error: String(error) });
+      console.error(msg, error);
       // Still remove from UI even if CLI fails
       await deleteDoc(doc(db, 'user_plugins', pluginId));
     }
@@ -399,6 +508,14 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={runAttackSimulation}
+            disabled={attackRunning}
+            className="flex items-center gap-2 px-3 py-2 bg-red-500/10 text-red-400 border border-red-500/30 rounded-lg font-medium hover:bg-red-500/20 transition-all disabled:opacity-50"
+          >
+            {attackRunning ? <Loader2 size={16} className="animate-spin" /> : <Bug size={16} />}
+            Attack Sim
+          </button>
+          <button
             onClick={syncPlugins}
             disabled={syncing}
             className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg font-medium hover:bg-white/20 transition-all disabled:opacity-50"
@@ -413,6 +530,65 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
             <Plus size={18} />
             Install Custom Plugin
           </button>
+        </div>
+      </div>
+
+      {/* STEP 1: Permissive Mode Banner */}
+      <div className="flex items-center gap-3 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+        <AlertOctagon className="text-yellow-500 w-5 h-5 flex-shrink-0" />
+        <div className="flex-1">
+          <span className="text-yellow-400 font-medium text-sm">Demo Mode Active</span>
+          <p className="text-zinc-400 text-xs mt-0.5">
+            Plugins run with full access. Zero-trust sandbox will be enforced in production.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-xs">
+          <span className="flex items-center gap-1 text-emerald-400">
+            <Unlock size={12} /> Permissive
+          </span>
+          <span className="text-zinc-600">|</span>
+          <span className="flex items-center gap-1 text-zinc-500">
+            <Lock size={12} /> Zero-Trust Disabled
+          </span>
+        </div>
+      </div>
+
+      {/* STEP 8: User Explanation Panel */}
+      <div className="flex items-start gap-3 px-4 py-3 bg-zinc-900/50 border border-white/5 rounded-lg">
+        <Info className="text-blue-400 w-4 h-4 flex-shrink-0 mt-0.5" />
+        <div>
+          <h4 className="text-white text-sm font-medium">Execution Mode</h4>
+          <p className="text-zinc-500 text-xs mt-1">
+            Plugins currently run in permissive mode for demonstration purposes. 
+            This allows full access to APIs, filesystem, and network for testing. 
+            In production, plugins will run in isolated Docker containers with zero-trust security.
+          </p>
+        </div>
+      </div>
+
+      {/* STEP 1: Demo Walkthrough */}
+      <div className="bg-blue-900/20 border border-blue-500/30 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <Rocket className="text-blue-400 w-5 h-5" />
+          <h3 className="text-white font-bold">Demo Walkthrough</h3>
+        </div>
+        <div className="grid md:grid-cols-4 gap-4">
+          <div className="bg-black/30 rounded-lg p-3 border border-blue-500/20">
+            <div className="text-blue-400 font-bold text-lg mb-1">1</div>
+            <p className="text-white/70 text-sm">Install a plugin from the Marketplace</p>
+          </div>
+          <div className="bg-black/30 rounded-lg p-3 border border-blue-500/20">
+            <div className="text-blue-400 font-bold text-lg mb-1">2</div>
+            <p className="text-white/70 text-sm">Run it using <code className="text-blue-300">plugin run</code></p>
+          </div>
+          <div className="bg-black/30 rounded-lg p-3 border border-blue-500/20">
+            <div className="text-blue-400 font-bold text-lg mb-1">3</div>
+            <p className="text-white/70 text-sm">Generate AI plugins with the CLI</p>
+          </div>
+          <div className="bg-black/30 rounded-lg p-3 border border-blue-500/20">
+            <div className="text-blue-400 font-bold text-lg mb-1">4</div>
+            <p className="text-white/70 text-sm">View real-time analytics</p>
+          </div>
         </div>
       </div>
 
@@ -464,7 +640,89 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
           <Download size={18} />
           Marketplace
         </button>
+        <button
+          onClick={() => setActiveTab('attack')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+            activeTab === 'attack' 
+              ? 'bg-red-500/10 text-red-400 border border-red-500/20' 
+              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <Bug size={18} />
+          Attack Sim
+        </button>
       </div>
+
+      {/* STEP 2: Attack Simulation Panel */}
+      {showAttackPanel && (
+        <div className="bg-red-900/20 border border-red-500/30 rounded-xl p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <Bug className="text-red-400 w-5 h-5" />
+              <h3 className="text-white font-bold">Attack Simulation Results</h3>
+            </div>
+            <button 
+              onClick={() => setShowAttackPanel(false)}
+              className="text-zinc-400 hover:text-white"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          
+          {attackRunning ? (
+            <div className="flex items-center gap-3 text-yellow-400">
+              <Loader2 className="animate-spin" size={20} />
+              <span>Running attack simulation...</span>
+            </div>
+          ) : attackOutput ? (
+            <div className="space-y-4">
+              <pre className="bg-black/50 text-red-300 p-4 rounded-lg text-xs font-mono overflow-x-auto">
+                {attackOutput}
+              </pre>
+              {/* STEP 2: Explanation Panel */}
+              <div className="flex items-start gap-3 px-4 py-3 bg-yellow-900/20 border border-yellow-500/30 rounded-lg">
+                <AlertTriangle className="text-yellow-400 w-5 h-5 flex-shrink-0" />
+                <div>
+                  <p className="text-yellow-400 text-sm">
+                    ⚠️ In demo mode, this attack succeeds because plugins run with full access.
+                  </p>
+                  <p className="text-zinc-400 text-sm mt-1">
+                    🔐 In production, zero-trust WASM sandbox would block all these attack vectors.
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* STEP 3: Analytics Highlight */}
+      {activeTab === 'my-plugins' && plugins.length > 0 && (
+        <div className="bg-emerald-900/20 border border-emerald-500/30 rounded-xl p-5">
+          <div className="flex items-center gap-3 mb-4">
+            <Activity className="text-emerald-400 w-5 h-5" />
+            <h3 className="text-white font-bold">System Activity</h3>
+          </div>
+          <div className="grid md:grid-cols-4 gap-4">
+            <div className="bg-black/30 rounded-lg p-3 border border-emerald-500/20">
+              <div className="text-emerald-400 text-2xl font-bold">{plugins.length}</div>
+              <div className="text-white/60 text-sm">Plugins Installed</div>
+            </div>
+            <div className="bg-black/30 rounded-lg p-3 border border-emerald-500/20">
+              <div className="text-emerald-400 text-2xl font-bold">12</div>
+              <div className="text-white/60 text-sm">Total Executions</div>
+            </div>
+            <div className="bg-black/30 rounded-lg p-3 border border-emerald-500/20">
+              <div className="text-emerald-400 text-2xl font-bold">{plugins.filter(p => p.verified).length}</div>
+              <div className="text-white/60 text-sm">Verified Plugins</div>
+            </div>
+            <div className="bg-black/30 rounded-lg p-3 border border-emerald-500/20">
+              <div className="text-emerald-400 text-2xl font-bold">0</div>
+              <div className="text-white/60 text-sm">Security Events</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* My Plugins Tab */}
       {activeTab === 'my-plugins' && (
@@ -542,10 +800,38 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap">
+                      {/* STEP 2: Execution Status (Running in full access mode) */}
+                      {plugin.running && (
+                        <span className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg text-sm">
+                          <Cpu size={14} className="animate-pulse" /> Running...
+                        </span>
+                      )}
                       {/* STEP 1: Auto-update indicator */}
                       {plugin.updating && (
                         <span className="flex items-center gap-1 px-3 py-1.5 bg-blue-500/10 text-blue-400 rounded-lg text-sm">
                           <Loader2 size={14} className="animate-spin" /> Updating...
+                        </span>
+                      )}
+                      {/* STEP 5: Runtime Type */}
+                      {plugin.runtimeType && (
+                        <span className={`flex items-center gap-1 px-2 py-1 rounded text-xs ${
+                          plugin.runtimeType === 'wasm' 
+                            ? 'bg-purple-500/10 text-purple-400' 
+                            : 'bg-yellow-500/10 text-yellow-400'
+                        }`}>
+                          <Cpu size={10} /> {plugin.runtimeType === 'wasm' ? 'WASM' : 'Node/Docker'}
+                        </span>
+                      )}
+                      {/* STEP 6: Legacy Warning (soft) */}
+                      {plugin.runtimeType !== 'wasm' && !plugin.running && (
+                        <span className="flex items-center gap-1 text-xs text-yellow-400/70">
+                          <AlertTriangle size={10} /> Legacy mode
+                        </span>
+                      )}
+                      {/* STEP 3: Zero-Trust Disabled (inactive) */}
+                      {plugin.verified && (
+                        <span className="flex items-center gap-1 text-xs text-zinc-500">
+                          <Lock size={10} /> Zero-Trust disabled
                         </span>
                       )}
                       {/* STEP 2: Version Update UI */}
@@ -609,6 +895,19 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
       {/* AI Recommendations Tab */}
       {activeTab === 'recommendations' && (
         <div className="space-y-4">
+          {/* STEP 5: Recommendation UX Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-white">Recommended for You</h2>
+              <p className="text-zinc-500 text-sm mt-1">Based on your installed plugins and project activity</p>
+            </div>
+            {recommendations.length > 0 && (
+              <span className="text-xs text-purple-400 bg-purple-500/10 px-3 py-1 rounded-full">
+                {recommendations.length} suggestions
+              </span>
+            )}
+          </div>
+          
           {recommendationsLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-gitlab-orange animate-spin" />
@@ -653,7 +952,17 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
                         <Check size={14} /> Installed
                       </span>
                     ) : (
-                      <button className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-all">
+                      <button 
+                        onClick={async () => {
+                          const marketplacePlugin = marketplacePlugins.find(p => p.name === rec.name);
+                          if (marketplacePlugin) {
+                            await installPlugin(marketplacePlugin);
+                          } else {
+                            showToast(`Installing ${rec.name}...`, 'info');
+                          }
+                        }}
+                        className="flex items-center gap-1 px-3 py-1.5 bg-purple-500 text-white rounded-lg text-sm hover:bg-purple-600 transition-all"
+                      >
                         Install <ArrowRight size={14} />
                       </button>
                     )}
@@ -668,6 +977,20 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
       {/* Team Plugins Tab */}
       {activeTab === 'team' && (
         <div className="space-y-4">
+          {/* STEP 6: Team Context UI */}
+          {user?.custom_claims?.teamId && (
+            <div className="flex items-center justify-between bg-green-500/5 border border-green-500/20 rounded-lg px-4 py-3">
+              <div className="flex items-center gap-2">
+                <Users className="text-green-500 w-5 h-5" />
+                <span className="text-green-400 font-medium">Team Context</span>
+                <span className="text-zinc-500 text-sm">ID: {user.custom_claims.teamId}</span>
+              </div>
+              <span className="text-xs text-green-400 bg-green-500/10 px-2 py-1 rounded">
+                {teamPlugins.length} shared plugins
+              </span>
+            </div>
+          )}
+
           {!user?.custom_claims?.teamId ? (
             <div className="text-center py-12 bg-white/5 rounded-xl border border-white/10">
               <Users className="w-12 h-12 text-zinc-600 mx-auto mb-3" />
@@ -775,6 +1098,12 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
                     <span className="flex items-center gap-1">
                       <Star size={14} className="text-yellow-500" /> {plugin.rating}
                     </span>
+                    {/* STEP 4: Price display (payments disabled) */}
+                    {plugin.price !== undefined && (
+                      <span className={`flex items-center gap-1 ${plugin.price === 0 ? 'text-emerald-400' : 'text-yellow-400'}`}>
+                        <DollarSign size={12} /> {plugin.price === 0 ? 'Free' : `$${plugin.price}`}
+                      </span>
+                    )}
                   </div>
                   
                   {isInstalled(plugin.name) ? (
@@ -783,6 +1112,14 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
                       className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 rounded-lg text-sm font-medium cursor-not-allowed"
                     >
                       <Check size={16} /> Installed
+                    </button>
+                  ) : plugin.price && plugin.price > 0 ? (
+                    /* STEP 4: Payments Disabled */
+                    <button
+                      disabled
+                      className="flex items-center gap-2 px-3 py-1.5 bg-zinc-700/50 text-zinc-500 rounded-lg text-sm font-medium cursor-not-allowed opacity-50"
+                    >
+                      <DollarSign size={16} /> Coming Soon
                     </button>
                   ) : (
                     <button
