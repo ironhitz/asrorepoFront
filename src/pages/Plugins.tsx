@@ -14,6 +14,7 @@ import {
   query, where, orderBy, onSnapshot, updateDoc
 } from 'firebase/firestore';
 import { User } from 'firebase/auth';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 import { showToast } from '../components/ToastContainer';
 import { logger } from '../state/system';
 
@@ -33,6 +34,7 @@ interface UserPlugin {
   dependenciesVerified?: boolean;
   updating?: boolean;
   running?: boolean;
+  success?: boolean;
   runtimeType?: 'wasm' | 'node' | 'docker';
 }
 
@@ -83,7 +85,7 @@ const marketplacePlugins: MarketplacePlugin[] = [
     downloads: 1250,
     rating: 4.8,
     tags: ['security', 'scanner', 'AI'],
-    price: 9.99
+    price: 0
   },
   {
     id: '2',
@@ -95,13 +97,13 @@ const marketplacePlugins: MarketplacePlugin[] = [
     downloads: 890,
     rating: 4.6,
     tags: ['compliance', 'audit', 'security'],
-    price: 14.99
+    price: 0
   },
   {
     id: '3',
-    name: 'dependency-monitor',
+    name: 'dependency-checker',
     description: 'Real-time monitoring of npm dependencies for vulnerabilities',
-    repoUrl: 'https://github.com/asro-plugins/dependency-monitor',
+    repoUrl: 'https://github.com/asro-plugins/dependency-checker',
     version: '1.5.0',
     author: 'Community',
     downloads: 2100,
@@ -119,31 +121,31 @@ const marketplacePlugins: MarketplacePlugin[] = [
     downloads: 567,
     rating: 4.5,
     tags: ['secrets', 'security', 'API'],
-    price: 7.99
+    price: 0
   },
   {
     id: '5',
-    name: 'pipeline-optimizer',
-    description: 'Optimize GitLab CI/CD pipelines for security and performance',
-    repoUrl: 'https://github.com/asro-plugins/pipeline-optimizer',
-    version: '0.9.0',
+    name: 'mr-assistant',
+    description: 'AI assistant for Merge Requests, generating summaries and reviews',
+    repoUrl: 'https://github.com/asro-plugins/mr-assistant',
+    version: '1.0.0',
     author: 'ASRO Team',
-    downloads: 340,
-    rating: 4.3,
-    tags: ['CI/CD', 'pipeline', 'optimization'],
-    price: 12.99
+    downloads: 450,
+    rating: 4.7,
+    tags: ['GitLab', 'MR', 'AI'],
+    price: 0
   },
   {
     id: '6',
-    name: 'threat-modeler',
-    description: 'AI-powered threat modeling and attack vector analysis',
-    repoUrl: 'https://github.com/asro-plugins/threat-modeler',
+    name: 'code-reviewer',
+    description: 'Automated code review with AI-powered findings and scores',
+    repoUrl: 'https://github.com/asro-plugins/code-reviewer',
     version: '1.0.0',
     author: 'ASRO Team',
-    downloads: 678,
-    rating: 4.7,
-    tags: ['threat', 'AI', 'modeling'],
-    price: 19.99
+    downloads: 780,
+    rating: 4.9,
+    tags: ['code-review', 'AI', 'security'],
+    price: 0
   }
 ];
 
@@ -169,6 +171,9 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
   const [showInstallModal, setShowInstallModal] = useState(false);
   const [newPlugin, setNewPlugin] = useState({ name: '', repoUrl: '', description: '', teamId: '' });
   
+  // STEP 7: Plugin execution logs
+  const [pluginLogs, setPluginLogs] = useState<Record<string, string>>({});
+
   // STEP 2: Attack simulation state
   const [attackRunning, setAttackRunning] = useState(false);
   const [attackOutput, setAttackOutput] = useState('');
@@ -201,12 +206,14 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
           lastVerified: data.lastVerified?.toDate(),
           dependencies: data.dependencies || [],
           dependenciesVerified: data.dependenciesVerified || false,
-          updating: data.updating || false
+          updating: data.updating || false,
+          running: data.running || false,
+          success: data.success || false
         };
       });
       setPlugins(pluginList);
       setLoading(false);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'user_plugins'));
 
     return () => unsubscribe();
   }, [user]);
@@ -234,7 +241,7 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         };
       });
       setTeamPlugins(teamList);
-    });
+    }, (error) => handleFirestoreError(error, OperationType.GET, 'user_plugins'));
 
     return () => unsubscribe();
   }, [user?.custom_claims?.teamId]);
@@ -269,19 +276,24 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
       await cliExecute('plugin', ['install', marketplacePlugin.name, marketplacePlugin.repoUrl]);
       
       // Store in Firebase
-      await addDoc(collection(db, 'user_plugins'), {
-        name: marketplacePlugin.name,
-        description: marketplacePlugin.description,
-        repoUrl: marketplacePlugin.repoUrl,
-        version: marketplacePlugin.version,
-        latestVersion: marketplacePlugin.version,
-        installedAt: new Date(),
-        verified: false,
-        userId: user.uid,
-        teamId: user.custom_claims?.teamId || null,
-        dependencies: marketplacePlugin.dependencies || [],
-        dependenciesVerified: false
-      });
+      const path = 'user_plugins';
+      try {
+        await addDoc(collection(db, path), {
+          name: marketplacePlugin.name,
+          description: marketplacePlugin.description,
+          repoUrl: marketplacePlugin.repoUrl,
+          version: marketplacePlugin.version,
+          latestVersion: marketplacePlugin.version,
+          installedAt: new Date(),
+          verified: false,
+          userId: user.uid,
+          teamId: user.custom_claims?.teamId || null,
+          dependencies: marketplacePlugin.dependencies || [],
+          dependenciesVerified: false
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, path);
+      }
 
       showToast(`Successfully installed ${marketplacePlugin.name}`, 'success');
       logger.event('PLUGIN_INSTALL_SUCCESS', { plugin: marketplacePlugin.name });
@@ -303,19 +315,24 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
     try {
       await cliExecute('plugin', ['install', newPlugin.name, newPlugin.repoUrl]);
       
-      await addDoc(collection(db, 'user_plugins'), {
-        name: newPlugin.name,
-        description: newPlugin.description || 'Custom plugin',
-        repoUrl: newPlugin.repoUrl,
-        version: '1.0.0',
-        latestVersion: '1.0.0',
-        installedAt: new Date(),
-        verified: false,
-        userId: user.uid,
-        teamId: newPlugin.teamId || null,
-        dependencies: [],
-        dependenciesVerified: false
-      });
+      const path = 'user_plugins';
+      try {
+        await addDoc(collection(db, path), {
+          name: newPlugin.name,
+          description: newPlugin.description || 'Custom plugin',
+          repoUrl: newPlugin.repoUrl,
+          version: '1.0.0',
+          latestVersion: '1.0.0',
+          installedAt: new Date(),
+          verified: false,
+          userId: user.uid,
+          teamId: newPlugin.teamId || null,
+          dependencies: [],
+          dependenciesVerified: false
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, path);
+      }
 
       showToast(`Successfully installed ${newPlugin.name}`, 'success');
       logger.event('PLUGIN_CUSTOM_INSTALL_SUCCESS', { plugin: newPlugin.name });
@@ -338,15 +355,24 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
 
     try {
       // Set updating flag
-      await updateDoc(doc(db, 'user_plugins', plugin.id), { updating: true });
+      const path = 'user_plugins';
+      try {
+        await updateDoc(doc(db, path, plugin.id), { updating: true });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `${path}/${plugin.id}`);
+      }
       
       await cliExecute('plugin', ['update', plugin.name]);
       
       // Update Firebase with new version
-      await updateDoc(doc(db, 'user_plugins', plugin.id), {
-        version: plugin.latestVersion || plugin.version,
-        updating: false
-      });
+      try {
+        await updateDoc(doc(db, path, plugin.id), {
+          version: plugin.latestVersion || plugin.version,
+          updating: false
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `${path}/${plugin.id}`);
+      }
 
       showToast(`Successfully updated ${plugin.name}`, 'success');
       logger.event('PLUGIN_UPDATE_SUCCESS', { plugin: plugin.name });
@@ -358,6 +384,82 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
       await updateDoc(doc(db, 'user_plugins', plugin.id), { updating: false });
     }
 
+    setActionLoading(null);
+  };
+
+  // STEP 5: Run plugin via CLI
+  const runPlugin = async (plugin: UserPlugin) => {
+    setActionLoading(`run-${plugin.id}`);
+    logger.event('PLUGIN_RUN_START', { plugin: plugin.name });
+
+    setPluginLogs(prev => ({
+      ...prev,
+      [plugin.name]: "🚀 Starting execution...\n"
+    }));
+
+    try {
+      // Set running flag
+      const path = 'user_plugins';
+      await updateDoc(doc(db, path, plugin.id), { 
+        running: true,
+        success: false 
+      });
+      
+      // Use 'asro plugin run' as requested
+      const result = await cliExecute('asro', ['plugin', 'run', plugin.name]);
+      
+      setPluginLogs(prev => ({
+        ...prev,
+        [plugin.name]: (prev[plugin.name] || '') + (result.output || '✅ Done') + `\n✨ Process finished with success: ${result.success}`
+      }));
+
+      // Update Firebase with success state
+      await updateDoc(doc(db, path, plugin.id), {
+        running: false,
+        success: !!result.success
+      });
+
+      if (result.success) {
+        showToast(`Successfully executed ${plugin.name}`, 'success');
+        logger.event('PLUGIN_RUN_SUCCESS', { plugin: plugin.name });
+      } else {
+        showToast(`Plugin ${plugin.name} failed`, 'error');
+        logger.error('PLUGIN_RUN_FAILURE', { plugin: plugin.name, output: result.output });
+      }
+    } catch (error) {
+      const msg = `Failed to run ${plugin.name}`;
+      showToast(msg, 'error');
+      setPluginLogs(prev => ({
+        ...prev,
+        [plugin.name]: (prev[plugin.name] || '') + `\n❌ Error: ${String(error)}`
+      }));
+      logger.error('PLUGIN_RUN_ERROR', { plugin: plugin.name, error: String(error) });
+      console.error(msg, error);
+      await updateDoc(doc(db, 'user_plugins', plugin.id), { 
+        running: false,
+        success: false 
+      });
+    }
+
+    setActionLoading(null);
+  };
+
+  const stopPlugin = async (plugin: UserPlugin) => {
+    setActionLoading(`stop-${plugin.id}`);
+    try {
+      setPluginLogs(prev => ({
+        ...prev,
+        [plugin.name]: (prev[plugin.name] || '') + "\n⛔ Stopped by user"
+      }));
+      
+      await updateDoc(doc(db, 'user_plugins', plugin.id), { 
+        running: false 
+      });
+      
+      showToast(`Stopped ${plugin.name}`, 'info');
+    } catch (error) {
+      console.error('Failed to stop plugin:', error);
+    }
     setActionLoading(null);
   };
 
@@ -803,7 +905,12 @@ Duration: ${Date.now() % 1000}ms`;
                       {/* STEP 2: Execution Status (Running in full access mode) */}
                       {plugin.running && (
                         <span className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg text-sm">
-                          <Cpu size={14} className="animate-pulse" /> Running...
+                          <Zap size={14} className="animate-pulse text-gitlab-orange" /> ⚡ Executing...
+                        </span>
+                      )}
+                      {plugin.success && !plugin.running && (
+                        <span className="flex items-center gap-1 px-3 py-1.5 bg-emerald-500/10 text-emerald-400 rounded-lg text-sm">
+                          <CheckCircle size={14} /> ✅ Completed
                         </span>
                       )}
                       {/* STEP 1: Auto-update indicator */}
@@ -835,6 +942,35 @@ Duration: ${Date.now() % 1000}ms`;
                         </span>
                       )}
                       {/* STEP 2: Version Update UI */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => runPlugin(plugin)}
+                          disabled={actionLoading === `run-${plugin.id}` || plugin.running}
+                          className="flex items-center gap-1 px-3 py-1.5 bg-green-500/10 text-green-400 rounded-lg text-sm hover:bg-green-500/20 transition-all disabled:opacity-50"
+                        >
+                          {actionLoading === `run-${plugin.id}` ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Rocket size={14} />
+                          )}
+                          Run
+                        </button>
+
+                        {plugin.running && (
+                          <button
+                            onClick={() => stopPlugin(plugin)}
+                            disabled={actionLoading === `stop-${plugin.id}`}
+                            className="flex items-center gap-1 px-3 py-1.5 bg-red-500/10 text-red-400 rounded-lg text-sm hover:bg-red-500/20 transition-all disabled:opacity-50"
+                          >
+                            {actionLoading === `stop-${plugin.id}` ? (
+                              <Loader2 size={14} className="animate-spin" />
+                            ) : (
+                              <XCircle size={14} />
+                            )}
+                            Stop
+                          </button>
+                        )}
+                      </div>
                       {hasUpdate(plugin) && (
                         <button
                           onClick={() => updatePlugin(plugin)}
@@ -885,6 +1021,32 @@ Duration: ${Date.now() % 1000}ms`;
                       </button>
                     </div>
                   </div>
+
+                  {/* STEP 7: Plugin Execution Logs */}
+                  {pluginLogs[plugin.name] && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-4"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Execution Output</span>
+                        <button 
+                          onClick={() => setPluginLogs(prev => {
+                            const next = { ...prev };
+                            delete next[plugin.name];
+                            return next;
+                          })}
+                          className="text-[10px] text-zinc-500 hover:text-white"
+                        >
+                          Clear Logs
+                        </button>
+                      </div>
+                      <pre className="text-[11px] font-mono bg-black/50 border border-white/5 p-3 rounded-lg max-h-40 overflow-auto text-emerald-400/90 leading-relaxed scrollbar-thin scrollbar-thumb-white/10">
+                        {pluginLogs[plugin.name]}
+                      </pre>
+                    </motion.div>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -1098,12 +1260,9 @@ Duration: ${Date.now() % 1000}ms`;
                     <span className="flex items-center gap-1">
                       <Star size={14} className="text-yellow-500" /> {plugin.rating}
                     </span>
-                    {/* STEP 4: Price display (payments disabled) */}
-                    {plugin.price !== undefined && (
-                      <span className={`flex items-center gap-1 ${plugin.price === 0 ? 'text-emerald-400' : 'text-yellow-400'}`}>
-                        <DollarSign size={12} /> {plugin.price === 0 ? 'Free' : `$${plugin.price}`}
-                      </span>
-                    )}
+                    <span className="text-emerald-400 font-bold uppercase tracking-wider text-[10px]">
+                      Free
+                    </span>
                   </div>
                   
                   {isInstalled(plugin.name) ? (
@@ -1112,14 +1271,6 @@ Duration: ${Date.now() % 1000}ms`;
                       className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 text-emerald-500 rounded-lg text-sm font-medium cursor-not-allowed"
                     >
                       <Check size={16} /> Installed
-                    </button>
-                  ) : plugin.price && plugin.price > 0 ? (
-                    /* STEP 4: Payments Disabled */
-                    <button
-                      disabled
-                      className="flex items-center gap-2 px-3 py-1.5 bg-zinc-700/50 text-zinc-500 rounded-lg text-sm font-medium cursor-not-allowed opacity-50"
-                    >
-                      <DollarSign size={16} /> Coming Soon
                     </button>
                   ) : (
                     <button

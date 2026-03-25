@@ -66,6 +66,13 @@ export interface ActivityLog {
   details?: any;
 }
 
+export interface PipelineJob {
+  id: string;
+  name: string;
+  stage: string;
+  status: string;
+}
+
 export interface PipelineEvent {
   id: string;
   projectId: string;
@@ -73,6 +80,7 @@ export interface PipelineEvent {
   ref: string;
   webUrl: string;
   createdAt: string;
+  jobs?: PipelineJob[];
 }
 
 export interface DashboardStats {

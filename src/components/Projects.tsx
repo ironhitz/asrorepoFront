@@ -4,6 +4,7 @@ import { GitLabProject } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
 import { db } from '../firebase';
 import { collection, addDoc, deleteDoc, doc } from 'firebase/firestore';
+import { handleFirestoreError, OperationType } from '../lib/firestore-utils';
 
 interface ProjectsProps {
   projects: GitLabProject[];
@@ -60,10 +61,15 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
           forks_count: data.forks_count,
           last_activity_at: data.last_activity_at,
           addedAt: new Date().toISOString(),
-          user_id: user.uid
+          userId: user.uid // Fixed field name to match rules
         };
 
-        await addDoc(collection(db, 'projects'), projectToSave);
+        const path = 'projects';
+        try {
+          await addDoc(collection(db, path), projectToSave);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.CREATE, path);
+        }
 
         setSelectedProjectId(data.id.toString());
         setIsAddModalOpen(false);
@@ -83,10 +89,11 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
   const handleDeleteProject = async (firestoreId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm("Are you sure you want to remove this project from ASRO?")) {
+      const path = 'projects';
       try {
-        await deleteDoc(doc(db, 'projects', firestoreId));
+        await deleteDoc(doc(db, path, firestoreId));
       } catch (error) {
-        console.error("Failed to delete project:", error);
+        handleFirestoreError(error, OperationType.DELETE, `${path}/${firestoreId}`);
       }
     }
   };

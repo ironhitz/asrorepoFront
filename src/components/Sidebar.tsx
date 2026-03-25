@@ -19,6 +19,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, user, onLogo
     { id: 'agents', label: 'AI Orchestration', icon: Terminal },
     { id: 'security', label: 'Security Posture', icon: ShieldAlert },
     { id: 'pipelines', label: 'CI/CD Intelligence', icon: GitBranch },
+    { id: 'repository', label: 'Repository', icon: GitBranch },
     { id: 'activity', label: 'Activity Feed', icon: Activity },
     { id: 'plugins', label: 'Plugins', icon: Package },
     { id: 'profile', label: 'User Profile', icon: User },

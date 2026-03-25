@@ -72,16 +72,17 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, userId,
 
     setIsLoading(true);
     try {
-      // First, check if server is healthy
-      const healthCheck = await fetch('/api/health');
-      if (!healthCheck.ok) {
-        throw new Error(`Server health check failed: ${healthCheck.status}`);
-      }
+      const [command, ...args] = cmd.split(" ");
 
-      const response = await fetch('/api/cli/exec', {
+      const response = await fetch('/api/cli/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cmd, projectId, userId })
+        body: JSON.stringify({ 
+          command: cmd, // Keep full command for engine
+          args, 
+          projectId, 
+          userId 
+        })
       });
       
       if (!response.ok) {
@@ -92,7 +93,8 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, userId,
       }
 
       const data = await response.json();
-      setHistory(prev => [...prev, { type: 'out', text: data.output, timestamp: data.timestamp || timestamp }]);
+      const outputText = data.output || (data.success ? '✅ Done' : '❌ Command failed');
+      setHistory(prev => [...prev, { type: 'out', text: outputText, timestamp: data.timestamp || timestamp }]);
       
       if (data.findings && onFindings) {
         onFindings(data.findings);

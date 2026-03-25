@@ -1,8 +1,8 @@
 import { db } from './firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 
-const seedData = async (projectId?: string) => {
-  console.log('Seeding initial ASRO data for project:', projectId || 'global');
+const seedData = async (userId: string, projectId?: string) => {
+  console.log('Seeding initial ASRO data for user:', userId, 'project:', projectId || 'global');
 
   // 1. Agents
   const agents = [
@@ -20,7 +20,7 @@ const seedData = async (projectId?: string) => {
   ];
 
   for (const agent of agents) {
-    await addDoc(collection(db, 'agents'), { ...agent, lastAction: 'Initialized', lastActionTime: new Date().toISOString() });
+    await addDoc(collection(db, 'agents'), { ...agent, userId, lastAction: 'Initialized', lastActionTime: new Date().toISOString() });
   }
 
   // 1.1 Pipeline Stages
@@ -34,7 +34,7 @@ const seedData = async (projectId?: string) => {
   ];
 
   for (const stage of stages) {
-    await addDoc(collection(db, 'pipeline_stages'), { ...stage, projectId });
+    await addDoc(collection(db, 'pipeline_stages'), { ...stage, userId, projectId });
   }
 
   // 1.2 Sustainability Metrics
@@ -43,15 +43,16 @@ const seedData = async (projectId?: string) => {
     energyUsage: 120, // Wh
     greenScore: 88,
     optimizationSavings: 15.5,
+    userId,
     projectId
   };
   await addDoc(collection(db, 'sustainability_metrics'), sustainability);
 
   // 1.3 User Tasks
   const tasks = [
-    { title: 'Review Security Patch for auth.ts', priority: 'high', status: 'open', dueDate: new Date(Date.now() + 86400000).toISOString(), projectId },
-    { title: 'Approve MR #456: Dependency Update', priority: 'medium', status: 'in-progress', dueDate: new Date(Date.now() + 172800000).toISOString(), projectId },
-    { title: 'Run Compliance Audit for Q1', priority: 'critical', status: 'open', dueDate: new Date(Date.now() + 43200000).toISOString(), projectId }
+    { title: 'Review Security Patch for auth.ts', priority: 'high', status: 'open', dueDate: new Date(Date.now() + 86400000).toISOString(), userId, projectId },
+    { title: 'Approve MR #456: Dependency Update', priority: 'medium', status: 'in-progress', dueDate: new Date(Date.now() + 172800000).toISOString(), userId, projectId },
+    { title: 'Run Compliance Audit for Q1', priority: 'critical', status: 'open', dueDate: new Date(Date.now() + 43200000).toISOString(), userId, projectId }
   ];
   for (const task of tasks) {
     await addDoc(collection(db, 'user_tasks'), task);
@@ -59,9 +60,9 @@ const seedData = async (projectId?: string) => {
 
   // 1.4 User Sessions
   const sessions = [
-    { timestamp: new Date(Date.now() - 3600000).toISOString(), duration: '45m', actions: 12, projectId },
-    { timestamp: new Date(Date.now() - 86400000).toISOString(), duration: '1h 20m', actions: 24, projectId },
-    { timestamp: new Date(Date.now() - 172800000).toISOString(), duration: '30m', actions: 8, projectId }
+    { timestamp: new Date(Date.now() - 3600000).toISOString(), duration: '45m', actions: 12, userId, projectId },
+    { timestamp: new Date(Date.now() - 86400000).toISOString(), duration: '1h 20m', actions: 24, userId, projectId },
+    { timestamp: new Date(Date.now() - 172800000).toISOString(), duration: '30m', actions: 8, userId, projectId }
   ];
   for (const session of sessions) {
     await addDoc(collection(db, 'user_sessions'), session);
@@ -69,9 +70,9 @@ const seedData = async (projectId?: string) => {
 
   // 2. Vulnerabilities
   const vulns = [
-    { title: 'SQL Injection in user search', severity: 'critical', status: 'patching', description: 'Unsanitized input in search query', file: 'src/api/search.ts', line: 42, createdAt: new Date().toISOString(), projectId },
-    { title: 'Exposed API Key in config', severity: 'critical', status: 'detected', description: 'Hardcoded GitLab token found', file: 'config/gitlab.json', line: 12, createdAt: new Date().toISOString(), projectId },
-    { title: 'Insecure dependency: lodash', severity: 'high', status: 'patched', description: 'Prototype pollution vulnerability', file: 'package.json', line: 24, createdAt: new Date().toISOString(), projectId }
+    { title: 'SQL Injection in user search', severity: 'critical', status: 'patching', description: 'Unsanitized input in search query', file: 'src/api/search.ts', line: 42, createdAt: new Date().toISOString(), userId, projectId },
+    { title: 'Exposed API Key in config', severity: 'critical', status: 'detected', description: 'Hardcoded GitLab token found', file: 'config/gitlab.json', line: 12, createdAt: new Date().toISOString(), userId, projectId },
+    { title: 'Insecure dependency: lodash', severity: 'high', status: 'patched', description: 'Prototype pollution vulnerability', file: 'package.json', line: 24, createdAt: new Date().toISOString(), userId, projectId }
   ];
 
   for (const vuln of vulns) {
@@ -80,9 +81,9 @@ const seedData = async (projectId?: string) => {
 
   // 3. Activity Logs
   const logs = [
-    { timestamp: new Date().toISOString(), type: 'SCAN_COMPLETE', message: 'Full repository security scan completed by GPT-4 Scanner.', agentId: 'agent-1', projectId },
-    { timestamp: new Date().toISOString(), type: 'PATCH_GENERATED', message: 'Claude Patch Gen generated a fix for SQL Injection in search.ts.', agentId: 'agent-2', projectId },
-    { timestamp: new Date().toISOString(), type: 'PIPELINE_TRIGGERED', message: 'Triggered GitLab pipeline #123456 to validate security patch.', projectId }
+    { timestamp: new Date().toISOString(), type: 'SCAN_COMPLETE', message: 'Full repository security scan completed by GPT-4 Scanner.', agentId: 'agent-1', userId, projectId },
+    { timestamp: new Date().toISOString(), type: 'PATCH_GENERATED', message: 'Claude Patch Gen generated a fix for SQL Injection in search.ts.', agentId: 'agent-2', userId, projectId },
+    { timestamp: new Date().toISOString(), type: 'PIPELINE_TRIGGERED', message: 'Triggered GitLab pipeline #123456 to validate security patch.', userId, projectId }
   ];
 
   for (const log of logs) {
@@ -91,9 +92,9 @@ const seedData = async (projectId?: string) => {
 
   // 4. Pipelines
   const pipelines = [
-    { status: 'running', ref: 'main', webUrl: 'https://gitlab.com/asro/pipelines/123456', createdAt: new Date().toISOString(), projectId },
-    { status: 'failed', ref: 'security-patch-1', webUrl: 'https://gitlab.com/asro/pipelines/123455', createdAt: new Date().toISOString(), projectId },
-    { status: 'success', ref: 'main', webUrl: 'https://gitlab.com/asro/pipelines/123454', createdAt: new Date().toISOString(), projectId }
+    { status: 'running', ref: 'main', webUrl: 'https://gitlab.com/asro/pipelines/123456', createdAt: new Date().toISOString(), userId, projectId },
+    { status: 'failed', ref: 'security-patch-1', webUrl: 'https://gitlab.com/asro/pipelines/123455', createdAt: new Date().toISOString(), userId, projectId },
+    { status: 'success', ref: 'main', webUrl: 'https://gitlab.com/asro/pipelines/123454', createdAt: new Date().toISOString(), userId, projectId }
   ];
 
   for (const p of pipelines) {

@@ -11,65 +11,18 @@ import PipelineIntelligence from './components/PipelineIntelligence';
 import Projects from './components/Projects';
 import ThreatModel from './components/ThreatModel';
 import Terminal from './components/Terminal';
+import GitTools from './components/GitTools';
 import Help from './pages/Help';
 import { About } from './pages/About';
 import Plugins from './pages/Plugins';
 import Profile from './components/Profile';
 import { Agent, Vulnerability, ActivityLog, PipelineEvent, DashboardStats, GitLabProject } from './types';
+import { handleFirestoreError, OperationType } from './lib/firestore-utils';
 import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X, ShieldCheck, User as UserIcon } from 'lucide-react';
 import seedData from './seed';
 import ToastContainer from './components/ToastContainer';
 
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-}
+// Removed local handleFirestoreError and OperationType
 
 export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
@@ -175,11 +128,11 @@ export default function App() {
     loadData();
 
     // Real-time listeners
-    const agentsUnsub = onSnapshot(query(collection(db, 'agents'), where('userId', '==', user.uid)), () => loadData());
-    const vulnsUnsub = onSnapshot(query(collection(db, 'vulnerabilities'), where('userId', '==', user.uid)), () => loadData());
-    const logsUnsub = onSnapshot(query(collection(db, 'activity_logs'), where('userId', '==', user.uid)), () => loadData());
-    const pipelinesUnsub = onSnapshot(query(collection(db, 'pipelines'), where('userId', '==', user.uid)), () => loadData());
-    const projectsUnsub = onSnapshot(query(collection(db, 'projects'), where('userId', '==', user.uid)), () => loadData());
+    const agentsUnsub = onSnapshot(query(collection(db, 'agents'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'agents'));
+    const vulnsUnsub = onSnapshot(query(collection(db, 'vulnerabilities'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'vulnerabilities'));
+    const logsUnsub = onSnapshot(query(collection(db, 'activity_logs'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'activity_logs'));
+    const pipelinesUnsub = onSnapshot(query(collection(db, 'pipelines'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'pipelines'));
+    const projectsUnsub = onSnapshot(query(collection(db, 'projects'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'projects'));
 
     return () => {
       agentsUnsub();
@@ -279,16 +232,24 @@ export default function App() {
         }]
       };
       
-      await addDoc(collection(db, 'vulnerabilities'), newVuln);
+      try {
+        await addDoc(collection(db, 'vulnerabilities'), newVuln);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'vulnerabilities');
+      }
       
-      await addDoc(collection(db, 'activity_logs'), {
-        type: 'vulnerability_detected',
-        message: `AI Agent identified ${finding.severity} vulnerability in ${finding.file}: ${finding.title}`,
-        timestamp: new Date().toISOString(),
-        agentId: 'Gemini-3-Flash',
-        projectId: selectedProjectId,
-        userId: user.uid
-      });
+      try {
+        await addDoc(collection(db, 'activity_logs'), {
+          type: 'vulnerability_detected',
+          message: `AI Agent identified ${finding.severity} vulnerability in ${finding.file}: ${finding.title}`,
+          timestamp: new Date().toISOString(),
+          agentId: 'Gemini-3-Flash',
+          projectId: selectedProjectId,
+          userId: user.uid
+        });
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, 'activity_logs');
+      }
     }
   };
 
@@ -465,7 +426,7 @@ export default function App() {
               ASRO CLI
             </button>
             <button 
-              onClick={() => seedData(selectedProjectId, user)}
+              onClick={() => seedData(user.uid, selectedProjectId)}
               className="flex items-center gap-2 px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg text-xs font-medium text-zinc-400 hover:text-white transition-all"
             >
               <Database className="w-3.5 h-3.5" />
@@ -541,7 +502,7 @@ export default function App() {
 
           {activeTab === 'pipelines' && (
             <div className="max-w-7xl mx-auto">
-              <PipelineIntelligence pipelines={pipelines} />
+              <PipelineIntelligence pipelines={pipelines} setActiveTab={setActiveTab} />
             </div>
           )}
 
@@ -593,6 +554,16 @@ export default function App() {
             </div>
           )}
 
+          {activeTab === 'repository' && (
+            <div className="max-w-7xl mx-auto h-full">
+              <div className="mb-8">
+                <h2 className="text-3xl font-bold text-white tracking-tight">Repository Management</h2>
+                <p className="text-zinc-500 mt-1">Explore files, switch branches, and view diffs for the selected project.</p>
+              </div>
+              <GitTools projectId={selectedProjectId} />
+            </div>
+          )}
+
           {activeTab === 'about' && (
             <div className="max-w-4xl mx-auto">
               <About />
@@ -638,6 +609,7 @@ export default function App() {
         isOpen={isTerminalOpen} 
         onClose={() => setIsTerminalOpen(false)} 
         projectId={selectedProjectId} 
+        userId={user?.uid || ''}
         onFindings={handleFindings}
       />
       <ToastContainer />
