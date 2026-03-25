@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { auth, db } from './firebase';
-import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, GithubAuthProvider, signInWithPopup } from 'firebase/auth';
-import { collection, addDoc, deleteDoc, doc, getDocs, query, where, orderBy, onSnapshot, updateDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup, signInAnonymously, User as FirebaseUser } from 'firebase/auth';
+import { collection, addDoc, deleteDoc, doc, getDocs, query, where, orderBy, onSnapshot, updateDoc, getDocFromServer } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import SecurityPosture from './components/SecurityPosture';
@@ -14,13 +14,65 @@ import Terminal from './components/Terminal';
 import Help from './pages/Help';
 import { About } from './pages/About';
 import Plugins from './pages/Plugins';
+import Profile from './components/Profile';
 import { Agent, Vulnerability, ActivityLog, PipelineEvent, DashboardStats, GitLabProject } from './types';
-import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X, ShieldCheck } from 'lucide-react';
+import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X, ShieldCheck, User as UserIcon } from 'lucide-react';
 import seedData from './seed';
 import ToastContainer from './components/ToastContainer';
 
+enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId: string | undefined;
+    email: string | null | undefined;
+    emailVerified: boolean | undefined;
+    isAnonymous: boolean | undefined;
+    tenantId: string | null | undefined;
+    providerInfo: {
+      providerId: string;
+      displayName: string | null;
+      email: string | null;
+      photoUrl: string | null;
+    }[];
+  }
+}
+
+function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo: auth.currentUser?.providerData.map(provider => ({
+        providerId: provider.providerId,
+        displayName: provider.displayName,
+        email: provider.email,
+        photoUrl: provider.photoURL
+      })) || []
+    },
+    operationType,
+    path
+  }
+  console.error('Firestore Error: ', JSON.stringify(errInfo));
+  throw new Error(JSON.stringify(errInfo));
+}
+
 export default function App() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<FirebaseUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -51,6 +103,19 @@ export default function App() {
       setUser(firebaseUser);
       setLoading(false);
     });
+
+    // Test connection
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
+      }
+    };
+    testConnection();
+
     return () => unsubscribe();
   }, []);
 
@@ -161,45 +226,36 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user, selectedProjectId]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setAuthError('');
     setAuthLoading(true);
-
     try {
-      if (isSignUp) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
     } catch (error: any) {
       setAuthError(error.message);
       setAuthLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGuestLogin = async () => {
     setAuthError('');
+    setAuthLoading(true);
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await signInAnonymously(auth);
     } catch (error: any) {
       setAuthError(error.message);
-    }
-  };
-
-  const handleGitLabLogin = async () => {
-    setAuthError('');
-    try {
-      const provider = new GithubAuthProvider();
-      await signInWithPopup(auth, provider);
-    } catch (error: any) {
-      setAuthError(error.message);
+      setAuthLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    await signOut(auth);
+    try {
+      await signOut(auth);
+      setActiveTab('overview');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const handleFindings = async (findings: any[]) => {
@@ -246,104 +302,59 @@ export default function App() {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center p-4">
-        <div className="w-16 h-16 gitlab-bg rounded-2xl flex items-center justify-center mb-8 shadow-[0_0_30px_rgba(226,67,41,0.3)]">
-          <Shield className="text-white w-8 h-8" />
-        </div>
-        <h1 className="text-3xl font-bold text-white mb-2 text-center tracking-tight">ASRO Dashboard</h1>
-        <p className="text-zinc-500 mb-8 text-center max-w-sm">
-          AI-powered security orchestration for GitLab. Connect your account to access the control plane.
-        </p>
-        
-        <div className="bg-zinc-900 border border-white/10 rounded-2xl p-8 w-full max-w-md">
-          <h2 className="text-xl font-bold text-white mb-6 text-center">
-            {isSignUp ? 'Create Account' : 'Sign In'}
-          </h2>
-          
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Email</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-gitlab-orange"
-                required
-              />
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-zinc-900 border border-white/10 rounded-3xl p-10 shadow-2xl">
+          <div className="flex flex-col items-center mb-10">
+            <div className="w-20 h-20 bg-gitlab-orange rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-gitlab-orange/20 rotate-12">
+              <Shield className="text-white w-10 h-10" />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-zinc-400 mb-1.5">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete={isSignUp ? 'new-password' : 'current-password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full bg-black border border-white/10 rounded-lg px-4 py-3 text-white text-sm focus:outline-none focus:border-gitlab-orange"
-                required
-                minLength={6}
-              />
-            </div>
-            
-            {authError && (
-              <div className="text-red-500 text-sm bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {authError}
-              </div>
-            )}
-            
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full bg-gitlab-orange text-white font-bold py-3 rounded-lg hover:bg-gitlab-orange/90 transition-all disabled:opacity-50"
-            >
-              {authLoading ? <Loader2 className="w-5 h-5 mx-auto animate-spin" /> : (isSignUp ? 'Sign Up' : 'Sign In')}
-            </button>
-          </form>
-          
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-white/10"></div>
-            </div>
-            <div className="relative flex justify-center text-xs">
-              <span className="bg-zinc-900 px-2 text-zinc-500">or continue with</span>
-            </div>
+            <h1 className="text-4xl font-black text-white tracking-tighter mb-2">ASRO</h1>
+            <p className="text-zinc-500 text-sm font-medium uppercase tracking-widest">Autonomous Security Orchestrator</p>
           </div>
-          
-          <button
-            onClick={handleGoogleLogin}
-            className="w-full flex items-center justify-center gap-3 bg-white text-black px-8 py-3 rounded-lg font-bold hover:bg-zinc-200 transition-all"
-          >
-            <svg viewBox="0 0 24 24" className="w-5 h-5">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-            </svg>
-            Google
-          </button>
 
-          <button
-            onClick={handleGitLabLogin}
-            className="w-full flex items-center justify-center gap-3 bg-gitlab-orange text-white px-8 py-3 rounded-lg font-bold hover:bg-gitlab-orange/90 transition-all mt-3"
-          >
-            <svg viewBox="0 0 24 24" className="w-5 h-5">
-              <path fill="#E24329" d="M22.65 14.39L12 22.13 1.35 14.39a.84.84 0 0 1-.3-.94l1.22-3.78 2.44-7.51A.42.42 0 0 1 4.82 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.49h8.1l2.44-7.51A.42.42 0 0 1 18.6 2a.43.43 0 0 1 .58 0 .42.42 0 0 1 .11.18l2.44 7.51L23 13.45a.84.84 0 0 1-.35.94z"/>
-            </svg>
-            GitLab
-          </button>
-          
-          <p className="text-center text-sm text-zinc-500 mt-6">
-            {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
+          {authError && (
+            <div className="bg-red-500/10 border border-red-500/20 text-red-500 px-4 py-3 rounded-xl text-sm mb-6 flex items-center gap-3">
+              <AlertCircle size={18} />
+              {authError}
+            </div>
+          )}
+
+          <div className="space-y-4">
             <button
-              onClick={() => { setIsSignUp(!isSignUp); setAuthError(''); }}
-              className="text-gitlab-orange hover:underline font-medium"
+              onClick={handleGoogleLogin}
+              disabled={authLoading}
+              className="w-full flex items-center justify-center gap-3 bg-white text-black px-8 py-4 rounded-xl font-bold hover:bg-zinc-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed group"
             >
-              {isSignUp ? 'Sign In' : 'Sign Up'}
+              {authLoading ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : (
+                <svg viewBox="0 0 24 24" className="w-5 h-5 group-hover:scale-110 transition-transform">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+              )}
+              Continue with Google
             </button>
+
+            <button
+              onClick={handleGuestLogin}
+              disabled={authLoading}
+              className="w-full flex items-center justify-center gap-3 bg-zinc-800 text-white px-8 py-4 rounded-xl font-bold hover:bg-zinc-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {authLoading ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : (
+                <UserIcon size={20} />
+              )}
+              Continue as Guest
+            </button>
+          </div>
+
+          <p className="text-center text-xs text-zinc-600 mt-10 leading-relaxed">
+            By continuing, you agree to ASRO's <br />
+            <span className="text-zinc-500 hover:text-zinc-400 cursor-pointer underline">Terms of Service</span> and <span className="text-zinc-500 hover:text-zinc-400 cursor-pointer underline">Privacy Policy</span>
           </p>
         </div>
       </div>
@@ -354,7 +365,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-black text-zinc-300 flex">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        user={user} 
+        onLogout={handleLogout} 
+      />
       
       <main className="flex-1 flex flex-col h-screen overflow-hidden">
         <header className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-zinc-950/50 backdrop-blur-xl sticky top-0 z-10">
@@ -456,18 +472,19 @@ export default function App() {
               Seed Demo Data
             </button>
             <div className="text-right">
-              <div className="text-xs font-bold text-white">{user.email?.split('@')[0]}</div>
-              <div className="text-[10px] text-zinc-500">{user.email}</div>
+              <div className="text-xs font-bold text-white">{user.displayName || user.email?.split('@')[0] || 'Guest'}</div>
+              <div className="text-[10px] text-zinc-500">{user.email || 'Anonymous Session'}</div>
             </div>
-            {user.user_metadata.avatar_url ? (
+            {user.photoURL ? (
               <img 
-                src={user.user_metadata.avatar_url} 
+                src={user.photoURL} 
                 alt="Avatar" 
                 className="w-8 h-8 rounded-full border border-white/10"
+                referrerPolicy="no-referrer"
               />
             ) : (
               <div className="w-8 h-8 rounded-full border border-white/10 bg-gitlab-orange flex items-center justify-center">
-                <span className="text-white text-xs font-bold">{user.email?.[0]?.toUpperCase()}</span>
+                <span className="text-white text-xs font-bold">{(user.displayName?.[0] || user.email?.[0] || 'G').toUpperCase()}</span>
               </div>
             )}
             <button 
@@ -579,6 +596,12 @@ export default function App() {
           {activeTab === 'about' && (
             <div className="max-w-4xl mx-auto">
               <About />
+            </div>
+          )}
+
+          {activeTab === 'profile' && user && (
+            <div className="max-w-4xl mx-auto">
+              <Profile user={user} onLogout={handleLogout} />
             </div>
           )}
           

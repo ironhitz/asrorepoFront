@@ -71,13 +71,33 @@ service cloud.firestore {
              data.name is string && data.name.size() > 0 &&
              data.path_with_namespace is string && data.path_with_namespace.size() > 0 &&
              data.web_url is string && data.web_url.size() > 0 &&
-             data.addedAt is string && data.addedBy is string;
+             data.addedAt is string && data.user_id is string;
     }
 
     match /projects/{projectId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidProject(request.resource.data) && request.resource.data.addedBy == request.auth.uid;
+      allow create: if isAuthenticated() && isValidProject(request.resource.data) && request.resource.data.user_id == request.auth.uid;
       allow update, delete: if isAdmin();
+    }
+
+    match /pipeline_stages/{stageId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /user_tasks/{taskId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /user_sessions/{sessionId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    match /sustainability_metrics/{metricId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
     // User Profile

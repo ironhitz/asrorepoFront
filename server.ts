@@ -200,15 +200,18 @@ async function startServer() {
   });
 
   // CLI Simulation Endpoint
-  app.post("/api/cli/exec", async (req, res) => {
-    const { command, projectId } = req.body;
+  app.post("/api/cli/execute", async (req, res) => {
+    const { command, args, projectId } = req.body;
     const pid = projectId || GITLAB_PROJECT_ID;
     
+    // Normalize command
+    const fullCommand = args ? `asro ${command} ${args.join(" ")}` : command;
+    
     // Simulate CLI responses
-    let output = "";
-    if (command.startsWith("asro scan")) {
+    let output: any = "";
+    if (fullCommand.startsWith("asro scan")) {
       try {
-        const parts = command.split(" ");
+        const parts = fullCommand.split(" ");
         const targetPath = parts[2] || ""; // asro scan [path]
         
         // Fetch project files from GitLab
@@ -276,12 +279,12 @@ async function startServer() {
         }
         
         scanOutput += `[SUCCESS] Scan complete. ${findings.length} vulnerabilities detected.`;
-        return res.json({ output: scanOutput, findings, timestamp: new Date().toISOString() });
+        return res.json({ output: scanOutput, data: { findings }, timestamp: new Date().toISOString() });
       } catch (error) {
         console.error("Scan error:", error);
         return res.status(500).json({ output: `Error: Failed to perform AI scan. ${error instanceof Error ? error.message : String(error)}`, timestamp: new Date().toISOString() });
       }
-    } else if (command.startsWith("asro pipeline run")) {
+    } else if (fullCommand.startsWith("asro pipeline run")) {
       try {
         const response = await fetch(`${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid as string)}/pipeline?ref=main`, {
           method: "POST",
@@ -292,9 +295,22 @@ async function startServer() {
       } catch (error) {
         output = "Error: Failed to trigger GitLab pipeline.";
       }
-    } else if (command === "asro version") {
+    } else if (fullCommand.startsWith("asro plugin recommend")) {
+      output = [
+        { name: 'security-scanner', reason: 'High risk detected in current project', score: 95 },
+        { name: 'threat-modeler', reason: 'New architecture detected', score: 88 },
+        { name: 'secret-detector', reason: 'Multiple .env files found', score: 82 }
+      ];
+    } else if (fullCommand.startsWith("asro plugin install")) {
+      const pluginName = args ? args[1] : "unknown";
+      output = `[SUCCESS] Plugin "${pluginName}" installed successfully in sandbox.`;
+    } else if (fullCommand.startsWith("asro plugin sync")) {
+      output = "[SUCCESS] All plugins synchronized with GitLab repository.";
+    } else if (fullCommand.startsWith("asro plugin run malicious-plugin")) {
+      output = "Simulating malicious plugin execution...";
+    } else if (fullCommand === "asro version") {
       output = "ASRO CLI v1.0.0\nBuild: 2026-03-21\nEngine: Gemini-3-Flash";
-    } else if (command === "asro whoami") {
+    } else if (fullCommand === "asro whoami") {
       try {
         const response = await fetch(`${GITLAB_BASE_URL}/user`, {
           headers: { "PRIVATE-TOKEN": GITLAB_TOKEN || "" },
@@ -304,7 +320,7 @@ async function startServer() {
       } catch (error) {
         output = "Error: Failed to fetch user info.";
       }
-    } else if (command === "asro repo") {
+    } else if (fullCommand === "asro repo") {
       try {
         const response = await fetch(`${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid as string)}`, {
           headers: { "PRIVATE-TOKEN": GITLAB_TOKEN || "" },
@@ -314,7 +330,7 @@ async function startServer() {
       } catch (error) {
         output = "Error: Failed to fetch repository info.";
       }
-    } else if (command === "asro pipelines") {
+    } else if (fullCommand === "asro pipelines") {
       try {
         const response = await fetch(`${GITLAB_BASE_URL}/projects/${encodeURIComponent(pid as string)}/pipelines?per_page=5`, {
           headers: { "PRIVATE-TOKEN": GITLAB_TOKEN || "" },
@@ -324,13 +340,13 @@ async function startServer() {
       } catch (error) {
         output = "Error: Failed to fetch pipelines.";
       }
-    } else if (command === "asro agents") {
+    } else if (fullCommand === "asro agents") {
       output = "Active AI Agents:\n- Gemini-3-Flash (Scanner): Online\n- Gemini-Pro (Patch Generator): Online\n- ASRO-Orchestrator: Online";
-    } else if (command === "asro config") {
+    } else if (fullCommand === "asro config") {
       output = `Configuration:\n- GITLAB_BASE_URL: ${GITLAB_BASE_URL}\n- GITLAB_PROJECT_ID: ${pid}\n- AI_MODEL: gemini-3-flash-preview\n- SCAN_DEPTH: deep`;
-    } else if (command.startsWith("asro mr create")) {
+    } else if (fullCommand.startsWith("asro mr create")) {
       try {
-        const parts = command.split(" ");
+        const parts = fullCommand.split(" ");
         const title = parts.slice(3).join(" ") || "Security Patch: Fix vulnerabilities";
         const branchName = "security-patch-" + Date.now();
 
@@ -384,9 +400,9 @@ async function startServer() {
         console.error("MR creation error:", error);
         output = `Error: Failed to create GitLab merge request. ${error instanceof Error ? error.message : String(error)}`;
       }
-    } else if (command.startsWith("asro agent status")) {
+    } else if (fullCommand.startsWith("asro agent status")) {
       output = "Agent Status:\n- GPT-4 Scanner: idle\n- Claude Patch Gen: busy\n- Gemini Validator: idle";
-    } else if (command === "asro help") {
+    } else if (fullCommand === "asro help") {
       output = "ASRO CLI v1.0.0 - Available Commands:\n" +
                "- asro scan [path]: AI-powered vulnerability scan (e.g., asro scan src)\n" +
                "- asro pipeline run: Trigger a new GitLab pipeline\n" +
@@ -399,14 +415,14 @@ async function startServer() {
                "- asro version: Show CLI version information\n" +
                "- asro clear: Clear the terminal screen\n" +
                "- asro exit: Close the terminal";
-    } else if (command === "asro setup verify") {
+    } else if (fullCommand === "asro setup verify") {
       if (GITLAB_TOKEN && pid) {
         output = `[SUCCESS] GitLab configuration verified.\nProject ID: ${pid}\nToken: ${GITLAB_TOKEN.substring(0, 8)}...`;
       } else {
         output = "[ERROR] GitLab configuration missing. Please check .env file.";
       }
     } else {
-      output = `Command not found: ${command}. Type 'asro help' for a list of commands.`;
+      output = `Command not found: ${fullCommand}. Type 'asro help' for a list of commands.`;
     }
 
     res.json({ output, timestamp: new Date().toISOString() });

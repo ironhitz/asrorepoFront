@@ -1,10 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 import { db } from "../firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export async function orchestrateSecurityAction(finding: any, userId?: string) {
+export async function orchestrateSecurityAction(finding: any) {
   const model = "gemini-3-flash-preview";
   
   const prompt = `
@@ -33,8 +33,7 @@ export async function orchestrateSecurityAction(finding: any, userId?: string) {
       type: "AI_ORCHESTRATION",
       message: result.message,
       agentId: result.agentId,
-      details: result,
-      userId
+      details: result
     });
 
     return result;

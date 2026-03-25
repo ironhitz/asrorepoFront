@@ -1,0 +1,90 @@
+stages:
+  - scan
+  - test
+  - build
+  - deploy
+
+# SAST - Static Application Security Testing
+sast:
+  stage: scan
+  image: returntocorp/semgrep
+  script:
+    - semgrep --config=p/security-audit --json -o sast-report.json . || true
+  artifacts:
+    reports:
+      sast: sast-report.json
+  allow_failure: true
+
+# Dependency Scanning - Find vulnerable dependencies
+dependency_scanning:
+  stage: scan
+  image: registry.gitlab.com/gitlab-org/security-products/dependency-scanning:latest
+  script:
+    - /analyzer run
+  artifacts:
+    reports:
+      dependency_scanning: gl-dependency-scanning-report.json
+  allow_failure: true
+
+# Secret Detection - Find hardcoded secrets
+secret_detection:
+  stage: scan
+  image: registry.gitlab.com/gitlab-org/security-products/secret-detection:latest
+  script:
+    - /analyzer run
+  artifacts:
+    reports:
+      secret_detection: gl-secret-detection-report.json
+  allow_failure: true
+
+# Container Scanning (if you build Docker images)
+container_scanning:
+  stage: scan
+  image: registry.gitlab.com/gitlab-org/security-products/container-scanning:latest
+  variables:
+    CS_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
+  script:
+    - /analyzer run
+  artifacts:
+    reports:
+      container_scanning: gl-container-scanning-report.json
+  allow_failure: true
+  only:
+    - branches
+    - tags
+
+# DAST - Dynamic Application Security Testing (for deployed apps)
+dast:
+  stage: scan
+  image: registry.gitlab.com/gitlab-org/security-products/dast:latest
+  variables:
+    DAST_WEBSITE: "https://asrorepo-front.vercel.app"
+  script:
+    - /analyzer run
+  artifacts:
+    reports:
+      dast: gl-dast-report.json
+  allow_failure: true
+  only:
+    - main
+
+# Test stage
+test:
+  stage: test
+  image: node:18
+  script:
+    - npm install
+    - npm test
+  allow_failure: true
+
+# Build stage
+build:
+  stage: build
+  image: node:18
+  script:
+    - npm install
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+  allow_failure: true

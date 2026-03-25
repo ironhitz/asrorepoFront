@@ -1,12 +1,14 @@
 import React from 'react';
-import { LayoutDashboard, ShieldAlert, GitBranch, Terminal, Settings, Activity, ShieldCheck, Globe, Info, BookOpen, Package } from 'lucide-react';
+import { LayoutDashboard, ShieldAlert, GitBranch, Terminal, Settings, Activity, ShieldCheck, Globe, Info, BookOpen, Package, User, LogOut } from 'lucide-react';
 
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  user: any;
+  onLogout: () => void;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, user, onLogout }) => {
   const menuItems = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
     { id: 'security-dashboard', label: 'Security Dashboard', icon: ShieldAlert },
@@ -19,6 +21,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
     { id: 'pipelines', label: 'CI/CD Intelligence', icon: GitBranch },
     { id: 'activity', label: 'Activity Feed', icon: Activity },
     { id: 'plugins', label: 'Plugins', icon: Package },
+    { id: 'profile', label: 'User Profile', icon: User },
     { id: 'help', label: 'Help', icon: BookOpen },
     { id: 'about', label: 'About', icon: Info },
   ];
@@ -35,7 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
         <p className="text-xs text-zinc-500 mt-1 uppercase tracking-widest font-medium">AI Security Orchestration</p>
       </div>
       
-      <nav className="flex-1 p-4 space-y-1">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => (
           <button
             key={item.id}
@@ -52,10 +55,34 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-white/5 space-y-2">
+        {user && (
+          <div className="flex items-center gap-3 px-4 py-3 bg-white/5 rounded-xl border border-white/10">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-orange-500 to-purple-500 flex items-center justify-center text-white font-bold text-xs overflow-hidden">
+              {user.photoURL ? (
+                <img src={user.photoURL} alt={user.displayName || 'User'} className="w-full h-full object-cover" />
+              ) : (
+                (user.displayName?.[0] || user.email?.[0] || 'U').toUpperCase()
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-white truncate">{user.displayName || 'User'}</p>
+              <p className="text-[10px] text-zinc-500 truncate">{user.email || 'Guest'}</p>
+            </div>
+          </div>
+        )}
+        
         <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-zinc-400 hover:bg-white/5 hover:text-white transition-all">
           <Settings className="w-5 h-5" />
           <span className="font-medium">Settings</span>
+        </button>
+
+        <button 
+          onClick={onLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-400 hover:bg-red-500/10 transition-all"
+        >
+          <LogOut className="w-5 h-5" />
+          <span className="font-medium">Logout</span>
         </button>
       </div>
     </div>

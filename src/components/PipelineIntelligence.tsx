@@ -1,12 +1,13 @@
 import React from 'react';
-import { GitBranch, CheckCircle2, XCircle, Play, ExternalLink, Cpu } from 'lucide-react';
+import { GitBranch, CheckCircle2, XCircle, Play, ExternalLink, Cpu, PlayCircle } from 'lucide-react';
 import { PipelineEvent } from '../types';
 
 interface PipelineIntelligenceProps {
   pipelines: PipelineEvent[];
+  setActiveTab: (tab: string) => void;
 }
 
-const PipelineIntelligence: React.FC<PipelineIntelligenceProps> = ({ pipelines }) => {
+const PipelineIntelligence: React.FC<PipelineIntelligenceProps> = ({ pipelines, setActiveTab }) => {
   return (
     <div className="space-y-6">
       <div className="bg-zinc-900/50 border border-white/5 rounded-2xl p-6">
@@ -16,6 +17,13 @@ const PipelineIntelligence: React.FC<PipelineIntelligenceProps> = ({ pipelines }
             <p className="text-sm text-zinc-500">Autonomous self-healing and security validation loops</p>
           </div>
           <div className="flex gap-2">
+            <button 
+              onClick={() => setActiveTab('orchestration')}
+              className="px-3 py-1.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg flex items-center gap-2 text-xs font-medium text-zinc-400 hover:text-white transition-all"
+            >
+              <PlayCircle className="w-4 h-4" />
+              View Orchestration
+            </button>
             <div className="px-3 py-1.5 bg-gitlab-orange/10 border border-gitlab-orange/20 rounded-lg flex items-center gap-2">
               <Cpu className="w-4 h-4 text-gitlab-orange" />
               <span className="text-xs font-medium text-gitlab-orange">Self-Healing Active</span>
@@ -44,6 +52,46 @@ const PipelineIntelligence: React.FC<PipelineIntelligenceProps> = ({ pipelines }
                   <div className="text-xs text-zinc-500 mt-1">
                     Started {new Date(p.createdAt).toLocaleString()}
                   </div>
+                  
+                  {/* Pipeline Stages Visualization */}
+                  {p.jobs && p.jobs.length > 0 && (
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      {Array.from(new Set(p.jobs.map(j => j.stage))).map(stage => {
+                        const stageJobs = p.jobs!.filter(j => j.stage === stage);
+                        const isFailed = stageJobs.some(j => j.status === 'failed');
+                        const isRunning = stageJobs.some(j => j.status === 'running');
+                        const isSuccess = stageJobs.every(j => j.status === 'success');
+                        
+                        return (
+                          <div key={stage} className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-2 h-2 rounded-full ${
+                                isFailed ? 'bg-red-500' :
+                                isRunning ? 'bg-gitlab-purple animate-pulse' :
+                                isSuccess ? 'bg-emerald-500' :
+                                'bg-zinc-600'
+                              }`}></div>
+                              <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">{stage}</span>
+                            </div>
+                            <div className="flex gap-1">
+                              {stageJobs.map(job => (
+                                <div 
+                                  key={job.id} 
+                                  title={`${job.name}: ${job.status}`}
+                                  className={`w-6 h-1 rounded-full ${
+                                    job.status === 'success' ? 'bg-emerald-500/40' :
+                                    job.status === 'failed' ? 'bg-red-500/40' :
+                                    job.status === 'running' ? 'bg-gitlab-purple/40' :
+                                    'bg-zinc-800'
+                                  }`}
+                                ></div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
 
