@@ -45,6 +45,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.json({ status: "ok", timestamp: new Date().toISOString() });
   }
 
+  if (endpoint === 'projects' && req.method === 'GET') {
+    if (!GITLAB_TOKEN) {
+      return res.status(401).json({ error: "GitLab configuration missing" });
+    }
+    try {
+      const gitlabClient = new GitLabApiAdapter(GITLAB_TOKEN, GITLAB_BASE_URL);
+      const projects = await gitlabClient.get('/projects?membership=true&per_page=50');
+      return res.json(Array.isArray(projects) ? projects : []);
+    } catch (error) {
+      return res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  }
+
   if (endpoint === 'gitlab' && req.method === 'GET') {
     const action = req.query.action as string;
     const projectId = req.query.projectId as string || GITLAB_PROJECT_ID;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Heart, Github, ExternalLink, Shield, Code, Users } from 'lucide-react';
+import { Heart, Github, ExternalLink, Shield, Code, Users, Terminal, Package, Sparkles } from 'lucide-react';
 
 export function About() {
   const containerVariants = {
@@ -101,6 +101,51 @@ export function About() {
               <li>• Secure authentication</li>
             </ul>
           </div>
+        </div>
+      </motion.section>
+
+      {/* CLI System */}
+      <motion.section variants={itemVariants} className="bg-white/5 border border-white/10 rounded-xl p-8 space-y-4">
+        <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+          <Terminal className="text-orange-500" size={28} />
+          Unified CLI System
+        </h2>
+        <p className="text-white/70 leading-relaxed">
+          ASRO comes with a powerful command-line interface that works identically in local development 
+          environments and browser-based terminals. Execute security scans, manage plugins, and control 
+          GitLab pipelines seamlessly.
+        </p>
+        
+        <div className="grid md:grid-cols-3 gap-4 pt-4">
+          <div className="bg-black/30 rounded-lg p-4 border border-orange-500/20">
+            <Terminal className="text-orange-500 mb-2" size={24} />
+            <h3 className="font-bold text-white mb-1">Commands</h3>
+            <p className="text-white/60 text-sm">
+              scan, commit, push, patch, pipeline, doctor, and more
+            </p>
+          </div>
+          
+          <div className="bg-black/30 rounded-lg p-4 border border-purple-500/20">
+            <Package className="text-purple-500 mb-2" size={24} />
+            <h3 className="font-bold text-white mb-1">Plugin System</h3>
+            <p className="text-white/60 text-sm">
+              Extend functionality with AI-generated plugins
+            </p>
+          </div>
+          
+          <div className="bg-black/30 rounded-lg p-4 border border-green-500/20">
+            <Sparkles className="text-green-500 mb-2" size={24} />
+            <h3 className="font-bold text-white mb-1">AI-Powered</h3>
+            <p className="text-white/60 text-sm">
+              Google Gemini integration for intelligent automation
+            </p>
+          </div>
+        </div>
+
+        <div className="pt-4">
+          <code className="text-sm bg-black/50 text-orange-400 px-3 py-2 rounded block inline-block">
+            npm run cli -- help
+          </code>
         </div>
       </motion.section>
 

@@ -293,6 +293,39 @@ export async function handleConfig(args, context) {
   };
 }
 
+export async function handlePlugin(args, context) {
+  const [action, name, repo] = args;
+  
+  if (!action) {
+    return { output: 'Usage: asro plugin <install|uninstall|list> [name] [repo]' };
+  }
+  
+  if (action === 'list') {
+    const { listPlugins } = await import('../../plugins/manager.js');
+    return { output: listPlugins() };
+  }
+  
+  if (action === 'install') {
+    if (!name || !repo) {
+      return { output: 'Usage: asro plugin install <name> <repo-url>' };
+    }
+    const { installPlugin } = await import('../../plugins/manager.js');
+    const result = await installPlugin(name, repo);
+    return { output: result };
+  }
+  
+  if (action === 'uninstall') {
+    if (!name) {
+      return { output: 'Usage: asro plugin uninstall <name>' };
+    }
+    const { uninstallPlugin } = await import('../../plugins/manager.js');
+    const result = await uninstallPlugin(name);
+    return { output: result };
+  }
+  
+  return { output: `Unknown plugin action: ${action}. Use install, uninstall, or list.` };
+}
+
 export async function handleHelp(args, context) {
   return {
     output: `ASRO CLI v1.0.0 - Available Commands:
@@ -302,6 +335,9 @@ export async function handleHelp(args, context) {
 - asro patch <vulnerability>: Generate and apply patch
 - asro pipeline [run|list]: Pipeline management
 - asro agents [run]: List and run AI agents
+- asro plugin install <name> <repo>: Install plugin from repo
+- asro plugin uninstall <name>: Uninstall plugin
+- asro plugin list: List installed plugins
 - asro doctor: Repository health check
 - asro repo: Show repository info
 - asro whoami: Show user info
@@ -326,5 +362,9 @@ export function registerAllCommands(context) {
   registerCommand('asro whoami', handleWhoami);
   registerCommand('asro repo', handleRepo);
   registerCommand('asro config', handleConfig);
+  registerCommand('asro plugin', handlePlugin);
+  registerCommand('asro plugin install', handlePlugin);
+  registerCommand('asro plugin uninstall', handlePlugin);
+  registerCommand('asro plugin list', handlePlugin);
   registerCommand('asro help', handleHelp);
 }

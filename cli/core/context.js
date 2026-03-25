@@ -4,11 +4,21 @@ export class Context {
     this.gitlabClient = options.gitlabClient || null;
     this.aiClient = options.aiClient || null;
     this.logger = options.logger || defaultLogger;
-    this.config = options.config || {};
+    this.config = {
+      tenantId: 'default',
+      gitlabBaseUrl: 'https://gitlab.com/api/v4',
+      gitlabProjectId: null,
+      ...options.config
+    };
   }
 
   log(level, message, data = {}) {
-    this.logger(level, message, { ...data, timestamp: new Date().toISOString() });
+    const eventData = { 
+      tenantId: this.config.tenantId,
+      ...data, 
+      timestamp: new Date().toISOString() 
+    };
+    this.logger(level, message, eventData);
   }
 }
 
@@ -28,7 +38,12 @@ export function createContext(options = {}) {
 }
 
 export function emitEvent(context, event, data = {}) {
-  const eventData = { event, ...data, timestamp: new Date().toISOString() };
+  const eventData = { 
+    event, 
+    tenantId: context.config?.tenantId,
+    ...data, 
+    timestamp: new Date().toISOString() 
+  };
   context.log(event, '', eventData);
   return eventData;
 }

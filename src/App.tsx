@@ -10,8 +10,11 @@ import PipelineIntelligence from './components/PipelineIntelligence';
 import Projects from './components/Projects';
 import ThreatModel from './components/ThreatModel';
 import Terminal from './components/Terminal';
+import Help from './pages/Help';
+import { About } from './pages/About';
+import Plugins from './pages/Plugins';
 import { Agent, Vulnerability, ActivityLog, PipelineEvent, DashboardStats, GitLabProject } from './types';
-import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X } from 'lucide-react';
+import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDown, Globe, Plus, AlertCircle, Star, GitFork, Calendar, UserPlus, X, ShieldCheck } from 'lucide-react';
 import seedData from './seed';
 
 export default function App() {
@@ -608,6 +611,24 @@ export default function App() {
               <ActivityFeed logs={logs} />
             </div>
           )}
+
+          {activeTab === 'help' && (
+            <div className="max-w-5xl mx-auto h-full">
+              <Help />
+            </div>
+          )}
+
+          {activeTab === 'plugins' && (
+            <div className="max-w-5xl mx-auto h-full">
+              <Plugins user={user} />
+            </div>
+          )}
+
+          {activeTab === 'about' && (
+            <div className="max-w-4xl mx-auto">
+              <About />
+            </div>
+          )}
           
           {activeTab === 'compliance' && (
             <div className="max-w-7xl mx-auto">
@@ -647,5 +668,3 @@ export default function App() {
     </div>
   );
 }
-
-import { ShieldCheck } from 'lucide-react';
