@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from './utils/supabase';
-import { User, Session } from '@supabase/supabase-js';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, GoogleAuthProvider, GithubAuthProvider, signInWithPopup } from 'firebase/auth';
+import { collection, addDoc, deleteDoc, doc, getDocs, query, where, orderBy, onSnapshot, updateDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import Sidebar from './components/Sidebar';
 import SecurityPosture from './components/SecurityPosture';
@@ -18,8 +19,7 @@ import { Shield, LogOut, Loader2, Database, Terminal as TerminalIcon, ChevronDow
 import seedData from './seed';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -46,28 +46,15 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (!supabase) {
-      console.warn('Supabase not configured - running in demo mode');
-      setLoading(false);
-      return;
-    }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      setUser(firebaseUser);
       setLoading(false);
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!user || !supabase) {
+    if (!user) {
       setAgents([]);
       setVulnerabilities([]);
       setLogs([]);
@@ -77,86 +64,68 @@ export default function App() {
     }
 
     const loadData = async () => {
-      const { data: agentsData } = await supabase.from('agents').select('*');
-      if (agentsData) setAgents(agentsData as Agent[]);
+      // Agents
+      const agentsSnap = await getDocs(query(collection(db, 'agents'), where('userId', '==', user.uid)));
+      setAgents(agentsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as Agent[]);
 
-      const { data: vulnsData } = await supabase.from('vulnerabilities').select('*').order('created_at', { ascending: false });
-      if (vulnsData) {
-        const mapped = vulnsData.map(v => ({
-          ...v,
-          createdAt: v.created_at,
-          updatedAt: v.updated_at
-        })) as Vulnerability[];
-        const filteredData = selectedProjectId 
-          ? mapped.filter(v => v.projectId === selectedProjectId)
-          : mapped;
-        setVulnerabilities(filteredData);
-        
-        const critical = filteredData.filter(v => v.severity === 'critical').length;
-        const high = filteredData.filter(v => v.severity === 'high').length;
-        const fixed = filteredData.filter(v => v.status === 'patched').length;
-        
-        setStats(prev => ({
-          ...prev,
-          criticalCount: critical,
-          highCount: high,
-          autoFixedCount: fixed,
-          riskScore: Math.max(0, 10 - (critical * 2 + high * 0.5 + filteredData.length * 0.1))
-        }));
-      }
+      // Vulnerabilities
+      const vulnsSnap = await getDocs(query(collection(db, 'vulnerabilities'), where('userId', '==', user.uid), orderBy('createdAt', 'desc')));
+      const vulnsData = vulnsSnap.docs.map(d => d.data()) as Vulnerability[];
+      const filteredVulns = selectedProjectId ? vulnsData.filter(v => v.projectId === selectedProjectId) : vulnsData;
+      setVulnerabilities(filteredVulns);
 
-      const { data: logsData } = await supabase.from('activity_logs').select('*').order('timestamp', { ascending: false }).limit(50);
-      if (logsData) {
-        const mapped = logsData.map(l => ({
-          ...l,
-          timestamp: l.timestamp
-        })) as ActivityLog[];
-        setLogs(selectedProjectId ? mapped.filter(l => l.projectId === selectedProjectId) : mapped);
-      }
+      const critical = filteredVulns.filter(v => v.severity === 'critical').length;
+      const high = filteredVulns.filter(v => v.severity === 'high').length;
+      const fixed = filteredVulns.filter(v => v.status === 'patched').length;
 
-      const { data: pipelinesData } = await supabase.from('pipelines').select('*').order('createdAt', { ascending: false }).limit(10);
-      if (pipelinesData) {
-        const mapped = pipelinesData.map(p => ({
-          ...p,
-          createdAt: p.createdAt || p.created_at
-        })) as PipelineEvent[];
-        setPipelines(selectedProjectId ? mapped.filter(p => p.projectId === selectedProjectId) : mapped);
-      }
+      setStats(prev => ({
+        ...prev,
+        criticalCount: critical,
+        highCount: high,
+        autoFixedCount: fixed,
+        riskScore: Math.max(0, 10 - (critical * 2 + high * 0.5 + filteredVulns.length * 0.1))
+      }));
 
-      const { data: projectsData } = await supabase.from('projects').select('*').order('addedAt', { ascending: false });
-      if (projectsData) {
-        const mapped = projectsData.map(p => ({
-          ...p,
-          addedAt: p.addedAt || p.added_at,
-          firestoreId: p.id
-        })) as GitLabProject[];
-        setProjects(mapped);
-        
-        if (!selectedProjectId && mapped.length > 0) {
-          setSelectedProjectId(mapped[0].id.toString());
-        }
+      // Activity Logs
+      const logsSnap = await getDocs(query(collection(db, 'activity_logs'), where('userId', '==', user.uid), orderBy('timestamp', 'desc')));
+      const logsData = logsSnap.docs.map(d => d.data()) as ActivityLog[];
+      setLogs(selectedProjectId ? logsData.filter(l => l.projectId === selectedProjectId) : logsData);
+
+      // Pipelines
+      const pipelinesSnap = await getDocs(query(collection(db, 'pipelines'), where('userId', '==', user.uid), orderBy('createdAt', 'desc')));
+      const pipelinesData = pipelinesSnap.docs.map(d => d.data()) as PipelineEvent[];
+      setPipelines(selectedProjectId ? pipelinesData.filter(p => p.projectId === selectedProjectId) : pipelinesData);
+
+      // Projects
+      const projectsSnap = await getDocs(query(collection(db, 'projects'), where('userId', '==', user.uid), orderBy('addedAt', 'desc')));
+      const projectsData = projectsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as GitLabProject[];
+      setProjects(projectsData);
+
+      if (!selectedProjectId && projectsData.length > 0) {
+        setSelectedProjectId(projectsData[0].id?.toString() || '');
       }
     };
 
     loadData();
 
-    const channel = supabase.channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agents' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'vulnerabilities' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'activity_logs' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pipelines' }, () => loadData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, () => loadData())
-      .subscribe();
+    // Real-time listeners
+    const agentsUnsub = onSnapshot(query(collection(db, 'agents'), where('userId', '==', user.uid)), () => loadData());
+    const vulnsUnsub = onSnapshot(query(collection(db, 'vulnerabilities'), where('userId', '==', user.uid)), () => loadData());
+    const logsUnsub = onSnapshot(query(collection(db, 'activity_logs'), where('userId', '==', user.uid)), () => loadData());
+    const pipelinesUnsub = onSnapshot(query(collection(db, 'pipelines'), where('userId', '==', user.uid)), () => loadData());
+    const projectsUnsub = onSnapshot(query(collection(db, 'projects'), where('userId', '==', user.uid)), () => loadData());
 
     return () => {
-      if (supabase) {
-        supabase.removeChannel(channel);
-      }
+      agentsUnsub();
+      vulnsUnsub();
+      logsUnsub();
+      pipelinesUnsub();
+      projectsUnsub();
     };
   }, [user, selectedProjectId]);
 
   useEffect(() => {
-    if (!user || !supabase) return;
+    if (!user || !selectedProjectId) return;
 
     const fetchGitLabData = async () => {
       if (!selectedProjectId) return;
@@ -193,65 +162,47 @@ export default function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!supabase) {
-      setAuthError('Supabase not configured');
-      return;
-    }
     setAuthError('');
     setAuthLoading(true);
 
-    const { error } = isSignUp 
-      ? await supabase.auth.signUp({ email, password })
-      : await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
+    try {
+      if (isSignUp) {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+    } catch (error: any) {
       setAuthError(error.message);
       setAuthLoading(false);
     }
   };
 
   const handleGoogleLogin = async () => {
-    if (!supabase) {
-      setAuthError('Supabase not configured');
-      return;
-    }
     setAuthError('');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}`
-      }
-    });
-    if (error) {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
       setAuthError(error.message);
     }
   };
 
   const handleGitLabLogin = async () => {
-    if (!supabase) {
-      setAuthError('Supabase not configured');
-      return;
-    }
     setAuthError('');
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: 'gitlab',
-      options: {
-        redirectTo: `${window.location.origin}`
-      }
-    });
-    if (error) {
+    try {
+      const provider = new GithubAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (error: any) {
       setAuthError(error.message);
     }
   };
 
   const handleLogout = async () => {
-    if (supabase) {
-      await supabase.auth.signOut();
-    }
+    await signOut(auth);
   };
 
   const handleFindings = async (findings: any[]) => {
-    if (!user || !supabase) return;
+    if (!user) return;
     
     for (const finding of findings) {
       const newVuln = {
@@ -261,7 +212,7 @@ export default function App() {
         status: 'detected',
         file: finding.file,
         projectId: selectedProjectId,
-        userId: user.id,
+        userId: user.uid,
         createdAt: new Date().toISOString(),
         history: [{
           status: 'detected',
@@ -271,15 +222,15 @@ export default function App() {
         }]
       };
       
-      await supabase.from('vulnerabilities').insert(newVuln);
+      await addDoc(collection(db, 'vulnerabilities'), newVuln);
       
-      await supabase.from('activity_logs').insert({
+      await addDoc(collection(db, 'activity_logs'), {
         type: 'vulnerability_detected',
         message: `AI Agent identified ${finding.severity} vulnerability in ${finding.file}: ${finding.title}`,
         timestamp: new Date().toISOString(),
         agentId: 'Gemini-3-Flash',
         projectId: selectedProjectId,
-        userId: user.id
+        userId: user.uid
       });
     }
   };

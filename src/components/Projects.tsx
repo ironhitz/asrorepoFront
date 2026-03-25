@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { Globe, Plus, Trash2, ExternalLink, Loader2, Search, AlertCircle, Copy, Check } from 'lucide-react';
 import { GitLabProject } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
-import { supabase } from '../utils/supabase';
+import { db } from '../firebase';
+import { collection, addDoc, deleteDoc, doc, query, where } from 'firebase/firestore';
 import { 
   parseGitLabProjectLink, 
   describeGitLabProject, 
@@ -72,10 +73,10 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
           avatar_url: data.avatar_url || '',
           web_url: data.web_url,
           addedAt: new Date().toISOString(),
-          addedBy: user.id
+          userId: user.uid
         };
 
-        await supabase.from('projects').insert(projectToSave);
+        await addDoc(collection(db, 'projects'), projectToSave);
         setSelectedProjectId(data.id.toString());
         setIsAddModalOpen(false);
         setNewProjectId('');
@@ -94,7 +95,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
     e.stopPropagation();
     if (window.confirm("Are you sure you want to remove this project from ASRO?")) {
       try {
-        await supabase.from('projects').delete().eq('id', projectId);
+        await deleteDoc(doc(db, 'projects', projectId));
       } catch (error) {
         console.error("Failed to delete project:", error);
       }

@@ -1,15 +1,16 @@
-import { supabase } from './utils/supabase';
-import { User } from '@supabase/supabase-js';
+import { db } from './firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { User } from 'firebase/auth';
 
 const seedData = async (projectId?: string, user?: User | null) => {
-  if (!supabase) {
-    console.warn('Supabase not configured - cannot seed data');
+  if (!user) {
+    console.warn('No user - cannot seed data');
     return;
   }
 
   console.log('Seeding initial ASRO data for project:', projectId || 'global');
   
-  const userId = user?.id;
+  const userId = user.uid;
 
   // 1. Agents
   const agents = [
@@ -20,7 +21,7 @@ const seedData = async (projectId?: string, user?: User | null) => {
   ];
 
   for (const agent of agents) {
-    await supabase.from('agents').insert(agent);
+    await addDoc(collection(db, 'agents'), agent);
   }
 
   // 2. Vulnerabilities
@@ -31,7 +32,7 @@ const seedData = async (projectId?: string, user?: User | null) => {
   ];
 
   for (const vuln of vulns) {
-    await supabase.from('vulnerabilities').insert(vuln);
+    await addDoc(collection(db, 'vulnerabilities'), vuln);
   }
 
   // 3. Activity Logs
@@ -42,7 +43,7 @@ const seedData = async (projectId?: string, user?: User | null) => {
   ];
 
   for (const log of logs) {
-    await supabase.from('activity_logs').insert(log);
+    await addDoc(collection(db, 'activity_logs'), log);
   }
 
   // 4. Pipelines
@@ -53,7 +54,7 @@ const seedData = async (projectId?: string, user?: User | null) => {
   ];
 
   for (const p of pipelines) {
-    await supabase.from('pipelines').insert(p);
+    await addDoc(collection(db, 'pipelines'), p);
   }
 
   console.log('Seeding complete!');

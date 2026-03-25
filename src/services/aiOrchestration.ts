@@ -1,14 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
-import { supabase } from "../utils/supabase";
+import { db } from "../firebase";
+import { collection, addDoc } from "firebase/firestore";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function orchestrateSecurityAction(finding: any, userId?: string) {
-  if (!supabase) {
-    console.warn('Supabase not configured');
-    return null;
-  }
-
   const model = "gemini-3-flash-preview";
   
   const prompt = `
@@ -31,8 +27,8 @@ export async function orchestrateSecurityAction(finding: any, userId?: string) {
 
     const result = JSON.parse(response.text);
 
-    // Log the action to Supabase
-    await supabase.from("activity_logs").insert({
+    // Log the action to Firestore
+    await addDoc(collection(db, "activity_logs"), {
       timestamp: new Date().toISOString(),
       type: "AI_ORCHESTRATION",
       message: result.message,

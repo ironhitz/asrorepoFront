@@ -11,7 +11,7 @@ import {
   collection, addDoc, deleteDoc, doc, getDocs, 
   query, where, orderBy, onSnapshot, updateDoc
 } from 'firebase/firestore';
-import { User } from '@supabase/supabase-js';
+import { User } from 'firebase/auth';
 
 interface UserPlugin {
   id: string;
@@ -162,7 +162,7 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
 
     const q = query(
       collection(db, 'user_plugins'),
-      where('userId', '==', user.id),
+      where('userId', '==', user.uid),
       orderBy('installedAt', 'desc')
     );
 
@@ -253,7 +253,7 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         latestVersion: marketplacePlugin.version,
         installedAt: new Date(),
         verified: false,
-        userId: user.id,
+        userId: user.uid,
         teamId: user.custom_claims?.teamId || null,
         dependencies: marketplacePlugin.dependencies || [],
         dependenciesVerified: false
@@ -280,7 +280,7 @@ export function Plugins({ user }: { user: UserWithClaims | null }) {
         latestVersion: '1.0.0',
         installedAt: new Date(),
         verified: false,
-        userId: user.id,
+        userId: user.uid,
         teamId: newPlugin.teamId || null,
         dependencies: [],
         dependenciesVerified: false
