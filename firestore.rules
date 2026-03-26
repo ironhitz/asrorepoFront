@@ -77,9 +77,12 @@ service cloud.firestore {
 
     // Project Validation
     function isValidProject(data) {
-      return data.name is string && data.name.size() > 0 &&
+      return hasRequiredFields(['id', 'name', 'path_with_namespace', 'web_url', 'addedAt', 'addedBy']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.name is string && data.name.size() > 0 &&
              data.path_with_namespace is string && data.path_with_namespace.size() > 0 &&
              data.web_url is string && data.web_url.size() > 0 &&
+             data.addedAt is string &&
              data.addedBy == request.auth.uid;
     }
 

@@ -10,9 +10,10 @@
         "role": { "type": "string", "description": "The specific role of the agent (e.g., scanner, patcher, validator)." },
         "status": { "type": "string", "enum": ["idle", "busy", "error"], "description": "Current operational status." },
         "lastAction": { "type": "string", "description": "Description of the last performed action." },
-        "lastActionTime": { "type": "string", "format": "date-time", "description": "Timestamp of the last action." }
+        "lastActionTime": { "type": "string", "format": "date-time", "description": "Timestamp of the last action." },
+        "userId": { "type": "string", "description": "UID of the user who owns this agent." }
       },
-      "required": ["id", "name", "role", "status"]
+      "required": ["id", "name", "role", "status", "userId"]
     },
     "Vulnerability": {
       "title": "Security Vulnerability",
@@ -26,9 +27,10 @@
         "description": { "type": "string", "description": "Detailed description of the issue." },
         "file": { "type": "string", "description": "File path where the vulnerability was found." },
         "line": { "type": "number", "description": "Line number in the file." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When it was first detected." }
+        "createdAt": { "type": "string", "format": "date-time", "description": "When it was first detected." },
+        "userId": { "type": "string", "description": "UID of the user who owns this vulnerability." }
       },
-      "required": ["id", "title", "severity", "status", "createdAt"]
+      "required": ["id", "title", "severity", "status", "createdAt", "userId"]
     },
     "ActivityLog": {
       "title": "Activity Log",
@@ -40,9 +42,10 @@
         "agentId": { "type": "string", "description": "ID of the agent that performed the action (optional)." },
         "type": { "type": "string", "description": "Type of event (e.g., scan_complete, patch_generated)." },
         "message": { "type": "string", "description": "Human-readable description of the event." },
-        "details": { "type": "object", "description": "Additional structured data about the event." }
+        "details": { "type": "object", "description": "Additional structured data about the event." },
+        "userId": { "type": "string", "description": "UID of the user who owns this log entry." }
       },
-      "required": ["id", "timestamp", "type", "message"]
+      "required": ["id", "timestamp", "type", "message", "userId"]
     },
     "PipelineEvent": {
       "title": "Pipeline Event",
@@ -53,9 +56,10 @@
         "status": { "type": "string", "description": "Status (e.g., success, failed, running)." },
         "ref": { "type": "string", "description": "Git ref (branch/tag)." },
         "webUrl": { "type": "string", "description": "Link to the pipeline in GitLab." },
-        "createdAt": { "type": "string", "format": "date-time", "description": "When the pipeline started." }
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the pipeline started." },
+        "userId": { "type": "string", "description": "UID of the user who owns this pipeline event." }
       },
-      "required": ["id", "status", "ref", "webUrl", "createdAt"]
+      "required": ["id", "status", "ref", "webUrl", "createdAt", "userId"]
     },
     "Project": {
       "title": "GitLab Project",
@@ -67,6 +71,10 @@
         "path_with_namespace": { "type": "string", "description": "Full path with namespace (e.g., group/project)." },
         "avatar_url": { "type": "string", "description": "URL to the project avatar." },
         "web_url": { "type": "string", "description": "Link to the project in GitLab." },
+        "star_count": { "type": "number", "description": "Number of stars." },
+        "forks_count": { "type": "number", "description": "Number of forks." },
+        "last_activity_at": { "type": "string", "format": "date-time", "description": "Last activity timestamp." },
+        "type": { "type": "string", "enum": ["gitlab", "github"], "description": "Project provider type." },
         "addedAt": { "type": "string", "format": "date-time", "description": "When the project was added to ASRO." },
         "addedBy": { "type": "string", "description": "UID of the user who added the project." }
       },

@@ -11,9 +11,10 @@ interface ProjectsProps {
   selectedProjectId: string;
   setSelectedProjectId: (id: string) => void;
   user: any;
+  onProjectAdd?: (target: string) => Promise<void>;
 }
 
-const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSelectedProjectId, user }) => {
+const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSelectedProjectId, user, onProjectAdd }) => {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newProjectId, setNewProjectId] = useState('');
   const [newRepoUrl, setNewRepoUrl] = useState('');
@@ -22,65 +23,61 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
 
   const handleAddProject = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newProjectId.trim() && !newRepoUrl.trim()) return;
+    const target = newRepoUrl.trim() || newProjectId.trim();
+    if (!target) return;
 
     setIsAdding(true);
     try {
-      const query = newRepoUrl.trim() 
-        ? `repoUrl=${encodeURIComponent(newRepoUrl.trim())}` 
-        : `projectId=${newProjectId.trim()}`;
-        
-      const res = await fetch(`/api/gitlab/project?${query}`);
-      const data = await res.json();
-      
-      if (!res.ok) {
-        if (data.error === "GitLab configuration missing") {
-          alert("GitLab configuration missing. Please set GITLAB_TOKEN in AI Studio Settings.");
-        } else {
-          alert(data.error || "Failed to fetch project.");
-        }
-        setIsAdding(false);
-        return;
-      }
-
-      if (data.id) {
-        // Check if already in list
-        if (projects.some(p => p.id.toString() === data.id.toString())) {
-          alert("Project already added.");
-          setIsAdding(false);
-          return;
-        }
-
-        const projectToSave = {
-          id: data.id.toString(),
-          name: data.name,
-          path_with_namespace: data.path_with_namespace,
-          avatar_url: data.avatar_url || '',
-          web_url: data.web_url,
-          star_count: data.star_count,
-          forks_count: data.forks_count,
-          last_activity_at: data.last_activity_at,
-          addedAt: new Date().toISOString(),
-          userId: user.uid // Fixed field name to match rules
-        };
-
-        const path = 'projects';
-        try {
-          await addDoc(collection(db, path), projectToSave);
-        } catch (error) {
-          handleFirestoreError(error, OperationType.CREATE, path);
-        }
-
-        setSelectedProjectId(data.id.toString());
-        setIsAddModalOpen(false);
-        setNewProjectId('');
-        setNewRepoUrl('');
+      if (onProjectAdd) {
+        await onProjectAdd(target);
       } else {
-        alert("Project not found or invalid Project ID.");
+        const query = newRepoUrl.trim() 
+          ? `repoUrl=${encodeURIComponent(newRepoUrl.trim())}` 
+          : `projectId=${newProjectId.trim()}`;
+          
+        const res = await fetch(`/api/project/info?${query}`);
+        const data = await res.json();
+        
+        if (!res.ok) {
+          throw new Error(data.error || "Failed to fetch project.");
+        }
+
+        if (data.id) {
+          const projectIdStr = data.id.toString();
+          if (projects.some(p => p.id.toString() === projectIdStr)) {
+            alert("Project already added.");
+            setIsAdding(false);
+            return;
+          }
+
+          const projectToSave = {
+            id: projectIdStr,
+            name: data.name,
+            path_with_namespace: data.path_with_namespace,
+            avatar_url: data.avatar_url || '',
+            web_url: data.web_url,
+            star_count: data.star_count,
+            forks_count: data.forks_count,
+            last_activity_at: data.last_activity_at,
+            type: data.type || 'gitlab',
+            addedAt: new Date().toISOString(),
+            addedBy: user.uid
+          };
+
+          const path = 'projects';
+          await addDoc(collection(db, path), projectToSave);
+          setSelectedProjectId(data.id.toString());
+        } else {
+          alert("Project not found or invalid Project ID.");
+        }
       }
+      
+      setIsAddModalOpen(false);
+      setNewProjectId('');
+      setNewRepoUrl('');
     } catch (error) {
       console.error("Failed to add project:", error);
-      alert("Failed to add project. Check console for details.");
+      alert(error instanceof Error ? error.message : "Failed to add project.");
     } finally {
       setIsAdding(false);
     }
@@ -107,8 +104,8 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
     <div className="p-8 space-y-8 overflow-y-auto h-full">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">GitLab Projects</h2>
-          <p className="text-zinc-500 mt-1">Manage the repositories monitored by ASRO.</p>
+          <h2 className="text-3xl font-bold text-white tracking-tight">Projects</h2>
+          <p className="text-zinc-500 mt-1">Manage the repositories (GitLab & GitHub) monitored by ASRO.</p>
         </div>
         <button 
           onClick={() => setIsAddModalOpen(true)}
@@ -145,12 +142,21 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
             <div className={`absolute inset-0 bg-gradient-to-br from-gitlab-orange/5 to-transparent opacity-0 transition-opacity duration-500 ${selectedProjectId === project.id.toString() ? 'opacity-100' : 'group-hover:opacity-100'}`} />
             
             <div className="flex items-start justify-between mb-4 relative z-10">
-              <div className="w-12 h-12 bg-zinc-950 rounded-[2px] flex items-center justify-center overflow-hidden border border-white/10 shadow-inner">
-                {project.avatar_url ? (
-                  <img src={project.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <Globe className="w-6 h-6 text-zinc-500" />
-                )}
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-zinc-950 rounded-[2px] flex items-center justify-center overflow-hidden border border-white/10 shadow-inner">
+                  {project.avatar_url ? (
+                    <img src={project.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Globe className="w-6 h-6 text-zinc-500" />
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <span className={`text-[8px] font-bold uppercase tracking-[0.2em] px-1.5 py-0.5 rounded-[2px] w-fit ${
+                    (project as any).type === 'github' ? 'bg-white/10 text-white' : 'bg-gitlab-orange/20 text-gitlab-orange'
+                  }`}>
+                    {(project as any).type || 'gitlab'}
+                  </span>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <a 
@@ -219,7 +225,7 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
             >
               <div className="p-8 bg-gradient-to-b from-zinc-900 to-zinc-950">
                 <div className="flex items-center justify-between mb-8">
-                  <h3 className="text-xl font-bold text-white tracking-tight uppercase">Add GitLab Project</h3>
+                  <h3 className="text-xl font-bold text-white tracking-tight uppercase">Add Project</h3>
                   <button onClick={() => setIsAddModalOpen(false)} className="p-2 hover:bg-white/5 rounded-[2px] text-zinc-500 hover:text-white border border-transparent hover:border-white/10 transition-all">
                     <X className="w-5 h-5" />
                   </button>
@@ -243,12 +249,12 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
                       <div className="flex-grow border-t border-white/5"></div>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Repository URL</label>
+                      <label className="block text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2">Repository URL (GitLab/GitHub)</label>
                       <input
                         type="text"
                         value={newRepoUrl}
                         onChange={(e) => setNewRepoUrl(e.target.value)}
-                        placeholder="e.g., https://gitlab.com/group/project"
+                        placeholder="e.g., https://github.com/owner/repo"
                         className="w-full bg-zinc-950 border border-white/10 rounded-[2px] px-4 py-3 text-white placeholder:text-zinc-700 outline-none focus:border-gitlab-orange/50 transition-all shadow-inner font-mono text-sm"
                       />
                     </div>
@@ -257,8 +263,8 @@ const Projects: React.FC<ProjectsProps> = ({ projects, selectedProjectId, setSel
                   <div className="bg-gitlab-orange/5 border border-gitlab-orange/10 p-4 rounded-[2px] shadow-inner">
                     <h4 className="text-[10px] font-bold text-gitlab-orange uppercase tracking-widest mb-1">Guidelines</h4>
                     <ul className="text-[10px] text-zinc-500 space-y-1 list-disc pl-3 font-bold opacity-80">
-                      <li>Ensure your GITLAB_TOKEN has 'api' and 'read_repository' scopes.</li>
-                      <li>Project IDs are numeric (found on project home page).</li>
+                      <li>Ensure your tokens have 'api' and 'read_repository' scopes.</li>
+                      <li>Project IDs are numeric (GitLab only).</li>
                       <li>URLs should be the full HTTPS path to the repository.</li>
                     </ul>
                   </div>

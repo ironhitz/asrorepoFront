@@ -116,7 +116,7 @@ export default function App() {
       setPipelines(selectedProjectId ? pipelinesData.filter(p => p.projectId === selectedProjectId) : pipelinesData);
 
       // Projects
-      const projectsSnap = await getDocs(query(collection(db, 'projects'), where('userId', '==', user.uid), orderBy('addedAt', 'desc')));
+      const projectsSnap = await getDocs(query(collection(db, 'projects'), where('addedBy', '==', user.uid), orderBy('addedAt', 'desc')));
       const projectsData = projectsSnap.docs.map(d => ({ id: d.id, ...d.data() })) as unknown as GitLabProject[];
       setProjects(projectsData);
 
@@ -132,7 +132,7 @@ export default function App() {
     const vulnsUnsub = onSnapshot(query(collection(db, 'vulnerabilities'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'vulnerabilities'));
     const logsUnsub = onSnapshot(query(collection(db, 'activity_logs'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'activity_logs'));
     const pipelinesUnsub = onSnapshot(query(collection(db, 'pipelines'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'pipelines'));
-    const projectsUnsub = onSnapshot(query(collection(db, 'projects'), where('userId', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'projects'));
+    const projectsUnsub = onSnapshot(query(collection(db, 'projects'), where('addedBy', '==', user.uid)), () => loadData(), (error) => handleFirestoreError(error, OperationType.GET, 'projects'));
 
     return () => {
       agentsUnsub();
@@ -208,6 +208,50 @@ export default function App() {
       setActiveTab('overview');
     } catch (error) {
       console.error('Logout error:', error);
+    }
+  };
+
+  const handleProjectAdd = async (target: string) => {
+    if (!user) return;
+    
+    try {
+      const isUrl = target.startsWith('http');
+      const queryParam = isUrl ? `repoUrl=${encodeURIComponent(target)}` : `projectId=${encodeURIComponent(target)}`;
+      
+      const response = await fetch(`/api/project/info?${queryParam}`);
+      if (!response.ok) {
+        throw new Error("Project not found or invalid ID/URL.");
+      }
+      
+      const data = await response.json();
+      const projectIdStr = data.id.toString();
+
+      // Check if already exists
+      const existing = projects.find(p => p.id.toString() === projectIdStr);
+      if (existing) {
+        throw new Error("Project already added.");
+      }
+
+      const projectToSave = {
+        id: projectIdStr,
+        name: data.name,
+        path_with_namespace: data.path_with_namespace,
+        avatar_url: data.avatar_url || '',
+        web_url: data.web_url,
+        star_count: data.star_count,
+        forks_count: data.forks_count,
+        last_activity_at: data.last_activity_at,
+        type: data.type || 'gitlab',
+        addedAt: new Date().toISOString(),
+        addedBy: user.uid
+      };
+
+      const path = 'projects';
+      await addDoc(collection(db, path), projectToSave);
+      setSelectedProjectId(projectIdStr);
+    } catch (error) {
+      console.error("Failed to add project:", error);
+      throw error;
     }
   };
 
@@ -480,6 +524,7 @@ export default function App() {
                 selectedProjectId={selectedProjectId} 
                 setSelectedProjectId={setSelectedProjectId}
                 user={user}
+                onProjectAdd={handleProjectAdd}
               />
             </div>
           )}
@@ -611,6 +656,7 @@ export default function App() {
         projectId={selectedProjectId} 
         userId={user?.uid || ''}
         onFindings={handleFindings}
+        onProjectAdded={handleProjectAdd}
       />
       <ToastContainer />
     </div>

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Terminal as TerminalIcon, X, ChevronRight, Command, Minus, Maximize2, Anchor, Copy, Download, Trash2, Loader2 } from 'lucide-react';
+import { Terminal as TerminalIcon, X, ChevronRight, Command, Minus, Maximize2, Anchor, Copy, Download, Trash2, Loader2, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface TerminalProps {
@@ -8,6 +8,7 @@ interface TerminalProps {
   projectId: string;
   userId: string;
   onFindings?: (findings: any[]) => void;
+  onProjectAdded?: (target: string) => Promise<void>;
 }
 
 const ASCII_ART = `
@@ -19,7 +20,7 @@ const ASCII_ART = `
 AI Security Orchestration v1.0.0
 `;
 
-const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, userId, onFindings }) => {
+const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, userId, onFindings, onProjectAdded }) => {
   const [history, setHistory] = useState<{ type: 'cmd' | 'out', text: string, timestamp: string }[]>([
     { type: 'out', text: ASCII_ART, timestamp: new Date().toLocaleTimeString() },
     { type: 'out', text: "Type 'asro help' to see available commands.", timestamp: new Date().toLocaleTimeString() },
@@ -96,8 +97,17 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, userId,
       const outputText = data.output || (data.success ? '✅ Done' : '❌ Command failed');
       setHistory(prev => [...prev, { type: 'out', text: outputText, timestamp: data.timestamp || timestamp }]);
       
-      if (data.findings && onFindings) {
-        onFindings(data.findings);
+      if (data.action === 'PROJECT_ADD' && data.data?.target && onProjectAdded) {
+        try {
+          await onProjectAdded(data.data.target);
+          setHistory(prev => [...prev, { type: 'out', text: `[SUCCESS] Project ${data.data.target} added to ASRO dashboard.`, timestamp: new Date().toLocaleTimeString() }]);
+        } catch (error) {
+          setHistory(prev => [...prev, { type: 'out', text: `[ERROR] Failed to add project: ${error instanceof Error ? error.message : String(error)}`, timestamp: new Date().toLocaleTimeString() }]);
+        }
+      }
+
+      if (data.data?.findings && onFindings) {
+        onFindings(data.data.findings);
       }
     } catch (error) {
       console.error("Terminal Execution Error:", error);
@@ -105,6 +115,14 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, userId,
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  const copyToClipboard = (text: string, index: number) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(index);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -208,9 +226,20 @@ const Terminal: React.FC<TerminalProps> = ({ isOpen, onClose, projectId, userId,
                     <span className="absolute -left-4 top-0 text-[8px] font-bold text-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity">
                       [{item.timestamp}]
                     </span>
-                    <div className={item.type === 'cmd' ? 'text-gitlab-light-orange font-bold' : 'text-zinc-300 whitespace-pre-wrap leading-relaxed'}>
-                      {item.type === 'cmd' && <span className="text-zinc-600 mr-3">$</span>}
-                      {item.text}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className={item.type === 'cmd' ? 'text-gitlab-light-orange font-bold flex-1' : 'text-zinc-300 whitespace-pre-wrap leading-relaxed flex-1'}>
+                        {item.type === 'cmd' && <span className="text-zinc-600 mr-3">$</span>}
+                        {item.text}
+                      </div>
+                      {item.text !== ASCII_ART && (
+                        <button 
+                          onClick={() => copyToClipboard(item.text, i)}
+                          className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-white/10 rounded-[2px] text-zinc-500 hover:text-white transition-all shrink-0"
+                          title="Copy to clipboard"
+                        >
+                          {copiedId === i ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
